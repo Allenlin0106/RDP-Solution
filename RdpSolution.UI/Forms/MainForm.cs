@@ -2,8 +2,6 @@ using System;
 using System.Configuration;
 using System.IO;
 using System.Windows.Forms;
-using RdpSolution.BLL.Interfaces;
-using RdpSolution.BLL.Services;
 using RdpSolution.DAL.Interfaces;
 using RdpSolution.DAL.Models;
 using RdpSolution.DAL.Repositories;
@@ -13,7 +11,6 @@ namespace RdpSolution.UI.Forms
     public partial class MainForm : Form
     {
         private readonly IHostConfigRepository _repository;
-        private readonly IConnectionService    _connectionService;
 
         public MainForm()
         {
@@ -25,8 +22,7 @@ namespace RdpSolution.UI.Forms
                 ? rawPath
                 : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, rawPath);
 
-            _repository        = new XmlHostConfigRepository(configPath);
-            _connectionService = new ConnectionService();
+            _repository = new XmlHostConfigRepository(configPath);
 
             LoadHosts();
         }
@@ -82,21 +78,10 @@ namespace RdpSolution.UI.Forms
             var host = SelectedHost();
             if (host == null) return;
 
-            try
-            {
-                SetStatus("Connecting to " + host.Hostname + "…");
-                _connectionService.Connect(host);
-                SetStatus("Session launched → " + host.Hostname);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    "Could not launch the RDP session:\n\n" + ex.Message,
-                    "Connection Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-                SetStatus("Connection failed.");
-            }
+            // Open a non-modal session window with the embedded RDP control.
+            var session = new SessionForm(host);
+            session.Show(this);
+            SetStatus("Opened session: " + host.Name);
         }
 
         private void AddHost()

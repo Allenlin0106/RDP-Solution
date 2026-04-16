@@ -1,6 +1,4 @@
 using System;
-using System.Diagnostics;
-using System.IO;
 using System.Text;
 using RdpSolution.BLL.Interfaces;
 using RdpSolution.DAL.Models;
@@ -92,27 +90,6 @@ namespace RdpSolution.BLL.Services
             sb.AppendLine("shell working directory:s:");
 
             return sb.ToString();
-        }
-
-        public void Connect(RemoteHostConfig host)
-        {
-            if (host == null) throw new ArgumentNullException("host");
-            if (string.IsNullOrWhiteSpace(host.Hostname))
-                throw new InvalidOperationException("Hostname is required before connecting.");
-
-            var rdpContent = GenerateRdpFileContent(host);
-            var tempFile   = Path.Combine(
-                Path.GetTempPath(),
-                "rdpsolution_" + Guid.NewGuid().ToString("N") + ".rdp");
-
-            File.WriteAllText(tempFile, rdpContent, Encoding.UTF8);
-
-            Process.Start(new ProcessStartInfo
-            {
-                FileName        = "mstsc.exe",
-                Arguments       = "\"" + tempFile + "\"",
-                UseShellExecute = true
-            });
         }
     }
 }
