@@ -118,6 +118,22 @@ namespace RdpSolution.UI.RdpClient
         public void SetRedirectClipboard(bool v)   => SetAdv("RedirectClipboard", v);
         public void SetSmartResize(bool v)         => SetAdv("SmartSizing",       v);
 
+        /// <summary>
+        /// Supplies a plaintext password via IMsTscNonScriptable.put_ClearTextPassword.
+        /// This interface is IUnknown-only (not IDispatch), so the CLR QueryInterfaces
+        /// for it via the [ComImport] cast rather than through reflection.
+        /// </summary>
+        public void SetPassword(string password)
+        {
+            if (_rdp == null || string.IsNullOrEmpty(password)) return;
+            try
+            {
+                var ns = _rdp as IMsTscNonScriptable;
+                ns?.put_ClearTextPassword(password);
+            }
+            catch { }
+        }
+
         // ------------------------------------------------------------------ actions
 
         public void Connect()

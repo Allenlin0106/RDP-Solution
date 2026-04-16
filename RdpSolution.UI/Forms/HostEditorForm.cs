@@ -52,7 +52,8 @@ namespace RdpSolution.UI.Forms
             chkAttachDrives.Checked   = c.AttachDrives;
             chkAttachPrinters.Checked = c.AttachPrinters;
             SelectColorDepth(c.ColorDepth);
-            txtNotes.Text = c.Notes ?? string.Empty;
+            txtPassword.Text = c.Password ?? string.Empty;
+            txtNotes.Text    = c.Notes    ?? string.Empty;
             UpdateResolutionEnabled();
         }
 
@@ -137,6 +138,7 @@ namespace RdpSolution.UI.Forms
             HostConfig.FullScreen     = chkFullScreen.Checked;
             HostConfig.AttachDrives   = chkAttachDrives.Checked;
             HostConfig.AttachPrinters = chkAttachPrinters.Checked;
+            HostConfig.Password       = txtPassword.Text;   // kept as plaintext in memory
             HostConfig.Notes          = txtNotes.Text.Trim();
 
             int bpp;

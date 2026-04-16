@@ -73,15 +73,26 @@ namespace RdpSolution.UI.Forms
 
         // ------------------------------------------------------------------ actions
 
+        private SessionTabsForm _sessionTabs;
+
         private void ConnectToSelected()
         {
             var host = SelectedHost();
             if (host == null) return;
 
-            // Open a non-modal session window with the embedded RDP control.
-            var session = new SessionForm(host);
-            session.Show(this);
-            SetStatus("Opened session: " + host.Name);
+            if (_sessionTabs == null || _sessionTabs.IsDisposed)
+            {
+                _sessionTabs = new SessionTabsForm();
+                _sessionTabs.Show(this);
+            }
+            else
+            {
+                if (!_sessionTabs.Visible) _sessionTabs.Show();
+                _sessionTabs.BringToFront();
+            }
+
+            _sessionTabs.AddSession(host);
+            SetStatus("Session opened: " + host.Name);
         }
 
         private void AddHost()

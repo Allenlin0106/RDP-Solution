@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Xml.Linq;
 using RdpSolution.DAL.Interfaces;
 using RdpSolution.DAL.Models;
@@ -62,7 +64,8 @@ namespace RdpSolution.DAL.Repositories
                     AttachDrives   = ReadBool(el,   "AttachDrives",   false),
                     AttachPrinters = ReadBool(el,   "AttachPrinters", false),
                     ColorDepth     = ReadInt(el,    "ColorDepth", 32),
-                    Notes          = ReadString(el, "Notes")
+                    Notes          = ReadString(el, "Notes"),
+                    Password       = DecryptPassword(ReadString(el, "PasswordEncrypted"))
                 });
             }
 
@@ -88,8 +91,9 @@ namespace RdpSolution.DAL.Repositories
                         new XElement("FullScreen",     h.FullScreen),
                         new XElement("AttachDrives",   h.AttachDrives),
                         new XElement("AttachPrinters", h.AttachPrinters),
-                        new XElement("ColorDepth",     h.ColorDepth),
-                        new XElement("Notes",          h.Notes          ?? string.Empty)
+                        new XElement("ColorDepth",         h.ColorDepth),
+                        new XElement("Notes",              h.Notes              ?? string.Empty),
+                        new XElement("PasswordEncrypted",  EncryptPassword(h.Password ?? string.Empty))
                     ))
                 )
             );
@@ -171,6 +175,32 @@ namespace RdpSolution.DAL.Repositories
             if (el == null) return defaultValue;
             bool v;
             return bool.TryParse(el.Value, out v) ? v : defaultValue;
+        }
+
+        // ------------------------------------------------------------------ DPAPI password helpers
+
+        private static string EncryptPassword(string plainText)
+        {
+            if (string.IsNullOrEmpty(plainText)) return string.Empty;
+            try
+            {
+                byte[] cipher = ProtectedData.Protect(
+                    Encoding.UTF8.GetBytes(plainText), null, DataProtectionScope.CurrentUser);
+                return Convert.ToBase64String(cipher);
+            }
+            catch { return string.Empty; }
+        }
+
+        private static string DecryptPassword(string cipherBase64)
+        {
+            if (string.IsNullOrEmpty(cipherBase64)) return string.Empty;
+            try
+            {
+                byte[] plain = ProtectedData.Unprotect(
+                    Convert.FromBase64String(cipherBase64), null, DataProtectionScope.CurrentUser);
+                return Encoding.UTF8.GetString(plain);
+            }
+            catch { return string.Empty; }
         }
     }
 }

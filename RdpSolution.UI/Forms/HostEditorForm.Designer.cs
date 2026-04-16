@@ -24,6 +24,8 @@ namespace RdpSolution.UI.Forms
             this.txtUsername       = new System.Windows.Forms.TextBox();
             this.lblDomain         = new System.Windows.Forms.Label();
             this.txtDomain         = new System.Windows.Forms.TextBox();
+            this.lblPassword       = new System.Windows.Forms.Label();
+            this.txtPassword       = new System.Windows.Forms.TextBox();
             this.grpDisplay        = new System.Windows.Forms.GroupBox();
             this.chkFullScreen     = new System.Windows.Forms.CheckBox();
             this.lblWidth          = new System.Windows.Forms.Label();
@@ -60,9 +62,11 @@ namespace RdpSolution.UI.Forms
             this.grpConnection.Controls.Add(this.txtUsername);
             this.grpConnection.Controls.Add(this.lblDomain);
             this.grpConnection.Controls.Add(this.txtDomain);
+            this.grpConnection.Controls.Add(this.lblPassword);
+            this.grpConnection.Controls.Add(this.txtPassword);
             this.grpConnection.Location = new System.Drawing.Point(12, 8);
             this.grpConnection.Name     = "grpConnection";
-            this.grpConnection.Size     = new System.Drawing.Size(452, 182);
+            this.grpConnection.Size     = new System.Drawing.Size(452, 212);
             this.grpConnection.TabIndex = 0;
             this.grpConnection.TabStop  = false;
             this.grpConnection.Text     = "Connection";
@@ -124,7 +128,19 @@ namespace RdpSolution.UI.Forms
             this.txtDomain.Size      = new System.Drawing.Size(320, 20);
             this.txtDomain.TabIndex  = 4;
 
-            // ==== grpDisplay (y=196, h=94) ====
+            this.lblPassword.AutoSize = true;
+            this.lblPassword.Location = new System.Drawing.Point(10, 169);
+            this.lblPassword.Name     = "lblPassword";
+            this.lblPassword.Text     = "Pass&word:";
+
+            this.txtPassword.Location              = new System.Drawing.Point(120, 166);
+            this.txtPassword.MaxLength             = 256;
+            this.txtPassword.Name                  = "txtPassword";
+            this.txtPassword.Size                  = new System.Drawing.Size(320, 20);
+            this.txtPassword.TabIndex              = 5;
+            this.txtPassword.UseSystemPasswordChar = true;
+
+            // ==== grpDisplay (y=226, h=94) ====
             this.grpDisplay.Controls.Add(this.chkFullScreen);
             this.grpDisplay.Controls.Add(this.lblWidth);
             this.grpDisplay.Controls.Add(this.nudWidth);
@@ -132,7 +148,7 @@ namespace RdpSolution.UI.Forms
             this.grpDisplay.Controls.Add(this.nudHeight);
             this.grpDisplay.Controls.Add(this.lblColorDepth);
             this.grpDisplay.Controls.Add(this.cmbColorDepth);
-            this.grpDisplay.Location = new System.Drawing.Point(12, 196);
+            this.grpDisplay.Location = new System.Drawing.Point(12, 226);
             this.grpDisplay.Name     = "grpDisplay";
             this.grpDisplay.Size     = new System.Drawing.Size(452, 94);
             this.grpDisplay.TabIndex = 1;
@@ -190,7 +206,7 @@ namespace RdpSolution.UI.Forms
             // ==== grpDevices (y=296, h=72) ====
             this.grpDevices.Controls.Add(this.chkAttachDrives);
             this.grpDevices.Controls.Add(this.chkAttachPrinters);
-            this.grpDevices.Location = new System.Drawing.Point(12, 296);
+            this.grpDevices.Location = new System.Drawing.Point(12, 326);
             this.grpDevices.Name     = "grpDevices";
             this.grpDevices.Size     = new System.Drawing.Size(452, 72);
             this.grpDevices.TabIndex = 2;
@@ -213,7 +229,7 @@ namespace RdpSolution.UI.Forms
 
             // ==== grpNotes (y=374, h=90) ====
             this.grpNotes.Controls.Add(this.txtNotes);
-            this.grpNotes.Location = new System.Drawing.Point(12, 374);
+            this.grpNotes.Location = new System.Drawing.Point(12, 404);
             this.grpNotes.Name     = "grpNotes";
             this.grpNotes.Size     = new System.Drawing.Size(452, 90);
             this.grpNotes.TabIndex = 3;
@@ -229,7 +245,7 @@ namespace RdpSolution.UI.Forms
 
             // ==== btnOk / btnCancel ====
             this.btnOk.Anchor       = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
-            this.btnOk.Location     = new System.Drawing.Point(304, 478);
+            this.btnOk.Location     = new System.Drawing.Point(304, 508);
             this.btnOk.Name         = "btnOk";
             this.btnOk.Size         = new System.Drawing.Size(75, 28);
             this.btnOk.TabIndex     = 4;
@@ -238,7 +254,7 @@ namespace RdpSolution.UI.Forms
 
             this.btnCancel.Anchor       = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location     = new System.Drawing.Point(389, 478);
+            this.btnCancel.Location     = new System.Drawing.Point(389, 508);
             this.btnCancel.Name         = "btnCancel";
             this.btnCancel.Size         = new System.Drawing.Size(75, 28);
             this.btnCancel.TabIndex     = 5;
@@ -250,7 +266,7 @@ namespace RdpSolution.UI.Forms
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton        = this.btnCancel;
-            this.ClientSize          = new System.Drawing.Size(476, 518);
+            this.ClientSize          = new System.Drawing.Size(476, 548);
             this.Controls.Add(this.grpConnection);
             this.Controls.Add(this.grpDisplay);
             this.Controls.Add(this.grpDevices);
@@ -291,6 +307,8 @@ namespace RdpSolution.UI.Forms
         private System.Windows.Forms.TextBox        txtUsername;
         private System.Windows.Forms.Label          lblDomain;
         private System.Windows.Forms.TextBox        txtDomain;
+        private System.Windows.Forms.Label          lblPassword;
+        private System.Windows.Forms.TextBox        txtPassword;
         private System.Windows.Forms.GroupBox       grpDisplay;
         private System.Windows.Forms.CheckBox       chkFullScreen;
         private System.Windows.Forms.Label          lblWidth;

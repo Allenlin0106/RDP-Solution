@@ -40,6 +40,13 @@ namespace RdpSolution.DAL.Models
 
         public string Notes { get; set; }
 
+        /// <summary>
+        /// Plaintext password held in memory only.
+        /// The repository layer encrypts this with Windows DPAPI before writing to disk
+        /// and decrypts it when reading back, so it never appears as plaintext in the XML.
+        /// </summary>
+        public string Password { get; set; }
+
         public RemoteHostConfig()
         {
             Port      = 3389;
