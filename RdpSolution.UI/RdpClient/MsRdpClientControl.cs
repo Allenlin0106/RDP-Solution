@@ -109,7 +109,8 @@ namespace RdpSolution.UI.RdpClient
                 _axRdp = new InternalRdpClient { Dock = DockStyle.Fill };
                 _axRdp.OnConnected    += (s, ev) => RdpConnected?.Invoke(this, EventArgs.Empty);
                 _axRdp.OnDisconnected += (s, ev) =>
-                    RdpDisconnected?.Invoke(this, new RdpDisconnectedEventArgs(ev.discReason));
+                    RdpDisconnected?.Invoke(this, new RdpDisconnectedEventArgs(
+                        ev.discReason, (int)_axRdp.ExtendedDisconnectReason));
 
                 Controls.Add(_axRdp);   // triggers AxHost.CreateHandle() synchronously
                 _initialized = true;

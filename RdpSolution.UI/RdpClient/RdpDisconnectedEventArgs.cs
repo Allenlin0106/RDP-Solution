@@ -1,45 +1,82 @@
 using System;
+using MSTSCLib;
 
 namespace RdpSolution.UI.RdpClient
 {
     public sealed class RdpDisconnectedEventArgs : EventArgs
     {
-        /// <summary>
-        /// The numeric disconnect reason code reported by the RDP client.
-        /// Zero means the disconnect was initiated locally or the reason is unknown.
-        /// </summary>
-        public int Reason { get; }
+        public int Reason         { get; }
+        public int ExtendedReason { get; }
 
-        public RdpDisconnectedEventArgs(int reason)
+        public RdpDisconnectedEventArgs(int reason, int extendedReason = 0)
         {
-            Reason = reason;
+            Reason         = reason;
+            ExtendedReason = extendedReason;
         }
 
-        /// <summary>Human-readable description of the most common disconnect codes.</summary>
         public string ReasonDescription
         {
             get
             {
+                // Prefer the typed extended reason when the control supplies one.
+                if (ExtendedReason != 0)
+                {
+                    switch ((ExtendedDisconnectReasonCode)ExtendedReason)
+                    {
+                        case ExtendedDisconnectReasonCode.exDiscReasonNoInfo:
+                            break; // fall through to basic reason
+
+                        case ExtendedDisconnectReasonCode.exDiscReasonAPIInitiatedDisconnect:
+                            return "Disconnected";
+                        case ExtendedDisconnectReasonCode.exDiscReasonAPIInitiatedLogoff:
+                            return "Logged off";
+                        case ExtendedDisconnectReasonCode.exDiscReasonServerIdleTimeout:
+                            return "Idle timeout";
+                        case ExtendedDisconnectReasonCode.exDiscReasonServerLogonTimeout:
+                            return "Logon timeout";
+                        case ExtendedDisconnectReasonCode.exDiscReasonReplacedByOtherConnection:
+                            return "Replaced by another connection";
+                        case ExtendedDisconnectReasonCode.exDiscReasonOutOfMemory:
+                            return "Out of memory";
+                        case ExtendedDisconnectReasonCode.exDiscReasonServerDeniedConnection:
+                            return "Server denied the connection";
+                        case ExtendedDisconnectReasonCode.exDiscReasonServerDeniedConnectionFips:
+                            return "Server denied the connection (FIPS policy)";
+                        case ExtendedDisconnectReasonCode.exDiscReasonServerInsufficientPrivileges:
+                            return "Insufficient privileges";
+                        case ExtendedDisconnectReasonCode.exDiscReasonServerFreshCredentialsRequired:
+                            return "Fresh credentials required";
+                        case ExtendedDisconnectReasonCode.exDiscReasonRPCInitiatedDisconnectByUser:
+                            return "Disconnected by user";
+                        case ExtendedDisconnectReasonCode.exDiscReasonLogoffByUser:
+                            return "Logged off by user";
+
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseInternal:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseNoLicenseServer:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseNoLicense:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseErrClientMsg:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseHwidDoesntMatchLicense:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseErrClientLicense:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseCantFinishProtocol:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseClientEndedProtocol:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseErrClientEncryption:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseCantUpgradeLicense:
+                        case ExtendedDisconnectReasonCode.exDiscReasonLicenseNoRemoteConnections:
+                            return "Licensing error";
+
+                        default:
+                            return "Disconnected (extended code " + ExtendedReason + ")";
+                    }
+                }
+
+                // Basic discReason fallback.
                 switch (Reason)
                 {
-                    case 0:    return "Session ended";
-                    case 1:    return "User disconnected locally";
-                    case 2:    return "Remote user disconnected";
-                    case 3:    return "Server ended the session";
-                    case 260:  return "DNS name lookup failure";
-                    case 262:  return "Out of memory";
-                    case 264:  return "Connection timed out";
-                    case 516:  return "Could not connect to host";
-                    case 520:  return "Host not found";
-                    case 772:  return "Network error (send failed)";
-                    case 788:  return "Decryption error";
-                    case 1800: return "Socket closed unexpectedly";
-                    case 2052: return "DNS lookup failed";
-                    case 2308: return "Connection lost";
-                    case 2311: return "Licensing protocol error";
-                    case 2567: return "Disconnected by administrator";
-                    case 2825: return "Session terminated by remote server";
-                    default:   return "Disconnect code " + Reason;
+                    case 0: return "Session ended";
+                    case 1: return "User disconnected locally";
+                    case 2: return "Remote user disconnected";
+                    case 3: return "Server ended the session";
+                    default: return "Disconnected (code " + Reason + ")";
                 }
             }
         }
