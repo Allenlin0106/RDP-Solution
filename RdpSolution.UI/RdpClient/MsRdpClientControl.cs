@@ -1,168 +1,88 @@
 using System;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using AxMSTSCLib;
+using MSTSCLib;
 
 namespace RdpSolution.UI.RdpClient
 {
     /// <summary>
-    /// Hosts the Windows built-in RDP ActiveX control (MsTscAx.dll) inside a WinForms
-    /// control without requiring pre-generated AxInterop assemblies.
-    ///
-    /// All property access is performed through reflection / late-binding so the binary
-    /// ships without a COM reference or additional interop DLL.  The best available client
-    /// version (v10 → v9 → v8 → v7) is chosen automatically at class load time.
+    /// Wraps <see cref="AxMsRdpClient9NotSafeForScripting"/> with a clean public API
+    /// that matches the rest of the UI layer.  The inner AxHost is created lazily in
+    /// <see cref="OnHandleCreated"/> so that any COM registration failure is caught and
+    /// surfaced via <see cref="CreateFailed"/> rather than propagating as an unhandled
+    /// exception.
     /// </summary>
-    public sealed class MsRdpClientControl : AxHost
+    public sealed class MsRdpClientControl : UserControl
     {
-        // Resolve the CLSID once, before any instance is constructed.
-        private static readonly string s_clsid = ResolveClsid();
-
-        private static string ResolveClsid()
-        {
-            string[] progIds =
-            {
-                "MsTscAx.MsRdpClient10NotSafeForScripting",
-                "MsTscAx.MsRdpClient9NotSafeForScripting",
-                "MsTscAx.MsRdpClient8NotSafeForScripting",
-                "MsTscAx.MsRdpClient7NotSafeForScripting",
-            };
-            foreach (var pid in progIds)
-            {
-                var t = Type.GetTypeFromProgID(pid, false);
-                if (t != null)
-                    return t.GUID.ToString("B").ToUpperInvariant();
-            }
-            // Hard-coded fallback: MsRdpClient9NotSafeForScripting (Windows 7 SP1+)
-            return "{301B94BA-5D25-4A12-BFE3-DE2C75CC7571}";
-        }
-
-        // ------------------------------------------------------------------ state
-
-        private object _rdp;   // raw COM OCX
-        private object _adv;   // cached AdvancedSettings* object
-        private Timer  _pollTimer;
-        private int    _lastState = -1;
+        private InternalRdpClient _axRdp;
+        private bool _initialized;
 
         // ------------------------------------------------------------------ events
 
-        /// <summary>Raised on the UI thread when the session becomes fully connected.</summary>
+        /// <summary>Fired when the RDP session becomes fully connected.</summary>
         public event EventHandler RdpConnected;
 
-        /// <summary>Raised on the UI thread when the session disconnects.</summary>
+        /// <summary>Fired when the RDP session disconnects.</summary>
         public event EventHandler<RdpDisconnectedEventArgs> RdpDisconnected;
 
         /// <summary>
-        /// Raised when the COM class cannot be created (e.g. REGDB_E_CLASSNOTREG).
-        /// The Message property carries a human-readable explanation.
+        /// Fired when the COM ActiveX control cannot be created (e.g. REGDB_E_CLASSNOTREG).
+        /// When this event fires <see cref="Connect"/> and all property setters become no-ops.
         /// </summary>
         public event EventHandler<CreateFailedEventArgs> CreateFailed;
 
-        // ------------------------------------------------------------------ ctor / AxHost
-
-        public MsRdpClientControl() : base(s_clsid)
-        {
-            TabStop = false;
-        }
-
-        protected override void CreateHandle()
-        {
-            try
-            {
-                base.CreateHandle();
-            }
-            catch (COMException ex) when (ex.ErrorCode == unchecked((int)0x80040154))
-            {
-                CreateFailed?.Invoke(this, new CreateFailedEventArgs(
-                    "The Remote Desktop ActiveX control (MsTscAx.dll) is not registered on this machine.\n\n" +
-                    "Ensure mstsc.exe is present and the UI project targets x86 (32-bit)."));
-            }
-            catch (Exception ex)
-            {
-                CreateFailed?.Invoke(this, new CreateFailedEventArgs(ex.Message));
-            }
-        }
-
-        protected override void AttachInterfaces()
-        {
-            _rdp = GetOcx();
-            _adv = ResolveAdvancedSettings();
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            StartPollTimer();
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-                _pollTimer?.Dispose();
-            base.Dispose(disposing);
-        }
-
-        // ------------------------------------------------------------------ main properties
-
-        public string Server
-        {
-            get => Get<string>("Server");
-            set => Set("Server", value);
-        }
-
-        public string Domain
-        {
-            get => Get<string>("Domain");
-            set => Set("Domain", value);
-        }
-
-        public string UserName
-        {
-            get => Get<string>("UserName");
-            set => Set("UserName", value);
-        }
-
-        public int DesktopWidth
-        {
-            get => Get<int>("DesktopWidth");
-            set => Set("DesktopWidth", value);
-        }
-
-        public int DesktopHeight
-        {
-            get => Get<int>("DesktopHeight");
-            set => Set("DesktopHeight", value);
-        }
-
-        public bool FullScreen
-        {
-            get => Get<bool>("FullScreen");
-            set => Set("FullScreen", value);
-        }
+        // ------------------------------------------------------------------ state
 
         /// <summary>0 = not connected, 1 = connected, 2 = connecting.</summary>
-        public int ConnectedState => Get<int>("Connected");
+        public int ConnectedState => _initialized ? _axRdp.Connected : 0;
+
+        // ------------------------------------------------------------------ connection properties
+
+        public string Server        { set { if (_initialized) _axRdp.Server        = value; } }
+        public string Domain        { set { if (_initialized) _axRdp.Domain        = value; } }
+        public string UserName      { set { if (_initialized) _axRdp.UserName      = value; } }
+        public int    DesktopWidth  { set { if (_initialized) _axRdp.DesktopWidth  = value; } }
+        public int    DesktopHeight { set { if (_initialized) _axRdp.DesktopHeight = value; } }
+        public bool   FullScreen    { set { if (_initialized) _axRdp.FullScreen    = value; } }
 
         // ------------------------------------------------------------------ advanced settings
 
-        public void SetPort(int port)              => SetAdv("RDPPort",           port);
-        public void SetRedirectDrives(bool v)      => SetAdv("RedirectDrives",    v);
-        public void SetRedirectPrinters(bool v)    => SetAdv("RedirectPrinters",  v);
-        public void SetRedirectClipboard(bool v)   => SetAdv("RedirectClipboard", v);
-        public void SetSmartResize(bool v)         => SetAdv("SmartSizing",       v);
+        public void SetPort(int port)
+        {
+            if (_initialized) _axRdp.AdvancedSettings9.RDPPort = port;
+        }
 
-        /// <summary>
-        /// Supplies a plaintext password via IMsTscNonScriptable.put_ClearTextPassword.
-        /// This interface is IUnknown-only (not IDispatch), so the CLR QueryInterfaces
-        /// for it via the [ComImport] cast rather than through reflection.
-        /// </summary>
+        public void SetRedirectDrives(bool v)
+        {
+            if (_initialized) _axRdp.AdvancedSettings9.RedirectDrives = v;
+        }
+
+        public void SetRedirectPrinters(bool v)
+        {
+            if (_initialized) _axRdp.AdvancedSettings9.RedirectPrinters = v;
+        }
+
+        public void SetRedirectClipboard(bool v)
+        {
+            if (_initialized) _axRdp.AdvancedSettings9.RedirectClipboard = v;
+        }
+
+        public void SetSmartResize(bool v)
+        {
+            if (_initialized) _axRdp.AdvancedSettings9.SmartSizing = v;
+        }
+
+        // ------------------------------------------------------------------ password
+
         public void SetPassword(string password)
         {
-            if (_rdp == null || string.IsNullOrEmpty(password)) return;
+            if (!_initialized || string.IsNullOrEmpty(password)) return;
             try
             {
-                var ns = _rdp as IMsTscNonScriptable;
-                ns?.put_ClearTextPassword(password);
+                // IMsTscNonScriptable is IUnknown-only; QueryInterface via COM cast.
+                var ns = _axRdp.GetOcx() as IMsTscNonScriptable;
+                if (ns != null) ns.ClearTextPassword = password;
             }
             catch { }
         }
@@ -171,116 +91,55 @@ namespace RdpSolution.UI.RdpClient
 
         public void Connect()
         {
-            if (_rdp == null) return;
-            Invoke("Connect");
+            if (_initialized) _axRdp.Connect();
         }
 
         public void Disconnect()
         {
-            if (_rdp == null) return;
-            Invoke("Disconnect");
+            if (_initialized && _axRdp.Connected != 0) _axRdp.Disconnect();
         }
 
-        // ------------------------------------------------------------------ events (polled)
+        // ------------------------------------------------------------------ AxHost lifecycle
 
-        private void StartPollTimer()
+        protected override void OnHandleCreated(EventArgs e)
         {
-            _pollTimer = new Timer { Interval = 400 };
-            _pollTimer.Tick += (s, e) =>
-            {
-                if (_rdp == null) return;
-
-                int state = ConnectedState;
-                if (state == _lastState) return;
-
-                int prev = _lastState;
-                _lastState = state;
-
-                if (state == 1)
-                {
-                    RdpConnected?.Invoke(this, EventArgs.Empty);
-                }
-                else if (state == 0 && prev != -1)
-                {
-                    // Transition to disconnected (ignore the initial -1→0 at startup)
-                    int reason = prev == 1 ? Get<int>("DisconnectedReason") : 0;
-                    RdpDisconnected?.Invoke(this, new RdpDisconnectedEventArgs(reason));
-                }
-            };
-            _pollTimer.Start();
-        }
-
-        // ------------------------------------------------------------------ reflection helpers
-
-        private T Get<T>(string name)
-        {
-            if (_rdp == null) return default(T);
+            base.OnHandleCreated(e);
             try
             {
-                object v = _rdp.GetType().InvokeMember(
-                    name, BindingFlags.GetProperty, null, _rdp, null);
-                if (v == null) return default(T);
-                return (T)Convert.ChangeType(v, typeof(T));
+                _axRdp = new InternalRdpClient { Dock = DockStyle.Fill };
+                _axRdp.OnConnected    += (s, ev) => RdpConnected?.Invoke(this, EventArgs.Empty);
+                _axRdp.OnDisconnected += (s, ev) =>
+                    RdpDisconnected?.Invoke(this, new RdpDisconnectedEventArgs(ev.discReason));
+
+                Controls.Add(_axRdp);   // triggers AxHost.CreateHandle() synchronously
+                _initialized = true;
             }
-            catch { return default(T); }
+            catch (COMException ex) when (ex.ErrorCode == unchecked((int)0x80040154))
+            {
+                CreateFailed?.Invoke(this, new CreateFailedEventArgs(
+                    "The Remote Desktop ActiveX control (MsTscAx.dll) is not registered.\n\n" +
+                    "Ensure the application targets x86 (32-bit)."));
+            }
+            catch (Exception ex)
+            {
+                CreateFailed?.Invoke(this, new CreateFailedEventArgs(ex.Message));
+            }
         }
 
-        private void Set(string name, object value)
+        protected override void Dispose(bool disposing)
         {
-            if (_rdp == null) return;
-            try
-            {
-                _rdp.GetType().InvokeMember(
-                    name, BindingFlags.SetProperty, null, _rdp, new[] { value });
-            }
-            catch { }
+            if (disposing) _axRdp?.Dispose();
+            base.Dispose(disposing);
         }
 
-        private void Invoke(string name)
-        {
-            if (_rdp == null) return;
-            try
-            {
-                _rdp.GetType().InvokeMember(
-                    name, BindingFlags.InvokeMethod, null, _rdp, null);
-            }
-            catch { }
-        }
+        // ------------------------------------------------------------------ inner helper
 
-        private object ResolveAdvancedSettings()
+        // Exposes the protected AxHost.GetOcx() so we can QueryInterface for
+        // IUnknown-only interfaces (e.g. IMsTscNonScriptable) that are not
+        // reachable through the AxMSTSCLib typed surface.
+        private sealed class InternalRdpClient : AxMsRdpClient9NotSafeForScripting
         {
-            if (_rdp == null) return null;
-            // Try newest → oldest to get the richest interface.
-            string[] candidates =
-            {
-                "AdvancedSettings9", "AdvancedSettings8", "AdvancedSettings7",
-                "AdvancedSettings6", "AdvancedSettings5", "AdvancedSettings4",
-                "AdvancedSettings3", "AdvancedSettings2"
-            };
-            foreach (var p in candidates)
-            {
-                try
-                {
-                    object v = _rdp.GetType().InvokeMember(
-                        p, BindingFlags.GetProperty, null, _rdp, null);
-                    if (v != null) return v;
-                }
-                catch { }
-            }
-            return null;
-        }
-
-        private void SetAdv(string name, object value)
-        {
-            if (_adv == null)
-                _adv = ResolveAdvancedSettings();
-            if (_adv == null) return;
-            try
-            {
-                _adv.GetType().InvokeMember(
-                    name, BindingFlags.SetProperty, null, _adv, new[] { value });
-            }
-            catch { }
+            public new object GetOcx() => base.GetOcx();
         }
     }
 
