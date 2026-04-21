@@ -42,8 +42,8 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Interfaces\IConnectionService.cs" />
-    <Compile Include="Services\ConnectionService.cs" />
+    <Compile Include="Interfaces\IHostService.cs" />
+    <Compile Include="Services\HostService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

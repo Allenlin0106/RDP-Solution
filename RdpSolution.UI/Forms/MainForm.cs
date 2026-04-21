@@ -4,16 +4,13 @@ using System.IO;
 using System.Windows.Forms;
 using RdpSolution.BLL.Interfaces;
 using RdpSolution.BLL.Services;
-using RdpSolution.DAL.Interfaces;
 using RdpSolution.DAL.Models;
-using RdpSolution.DAL.Repositories;
 
 namespace RdpSolution.UI.Forms
 {
     public partial class MainForm : Form
     {
-        private readonly IHostConfigRepository _repository;
-        private readonly IConnectionService    _connectionService;
+        private readonly IHostService _hosts;
 
         public MainForm()
         {
@@ -24,19 +21,18 @@ namespace RdpSolution.UI.Forms
                 ? rawPath
                 : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, rawPath);
 
-            _repository        = new XmlHostConfigRepository(configPath);
-            _connectionService = new ConnectionService();
+            _hosts = new HostService(configPath);
 
             LoadHosts();
         }
 
-        // ------------------------------------------------------------------ data binding
+        // ------------------------------------------------------------------ list
 
         private void LoadHosts()
         {
             listViewHosts.Items.Clear();
 
-            foreach (var host in _repository.GetAll())
+            foreach (var host in _hosts.GetAll())
                 listViewHosts.Items.Add(BuildListItem(host));
 
             UpdateButtonStates();
@@ -55,24 +51,21 @@ namespace RdpSolution.UI.Forms
 
         private RemoteHostConfig SelectedHost()
         {
-            if (listViewHosts.SelectedItems.Count == 0)
-                return null;
-
+            if (listViewHosts.SelectedItems.Count == 0) return null;
             var id = listViewHosts.SelectedItems[0].Tag as string;
-            return _repository.GetById(id);
+            return _hosts.GetById(id);
         }
 
         private void UpdateButtonStates()
         {
             bool sel = listViewHosts.SelectedItems.Count > 0;
 
-            btnConnect.Enabled                   = sel;
-            btnEdit.Enabled                      = sel;
-            btnDelete.Enabled                    = sel;
-            connectToolStripMenuItem.Enabled     = sel;
-            editHostToolStripMenuItem.Enabled    = sel;
-            deleteHostToolStripMenuItem.Enabled  = sel;
-            exportRdpToolStripMenuItem.Enabled   = sel;
+            btnConnect.Enabled                  = sel;
+            btnEdit.Enabled                     = sel;
+            btnDelete.Enabled                   = sel;
+            connectToolStripMenuItem.Enabled    = sel;
+            editHostToolStripMenuItem.Enabled   = sel;
+            deleteHostToolStripMenuItem.Enabled = sel;
         }
 
         // ------------------------------------------------------------------ actions
@@ -103,13 +96,20 @@ namespace RdpSolution.UI.Forms
         {
             using (var dlg = new HostEditorForm())
             {
-                if (dlg.ShowDialog(this) != DialogResult.OK)
-                    return;
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
-                _repository.Add(dlg.HostConfig);
-                _repository.Save();
-                LoadHosts();
-                SetStatus("Added: " + dlg.HostConfig.Name);
+                try
+                {
+                    _hosts.Add(dlg.HostConfig);
+                    _hosts.Save();
+                    LoadHosts();
+                    SetStatus("Added: " + dlg.HostConfig.Name);
+                }
+                catch (ArgumentException ex)
+                {
+                    MessageBox.Show(ex.Message, "Validation Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
         }
 
@@ -120,13 +120,20 @@ namespace RdpSolution.UI.Forms
 
             using (var dlg = new HostEditorForm(host))
             {
-                if (dlg.ShowDialog(this) != DialogResult.OK)
-                    return;
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
 
-                _repository.Update(dlg.HostConfig);
-                _repository.Save();
-                LoadHosts();
-                SetStatus("Updated: " + dlg.HostConfig.Name);
+                try
+                {
+                    _hosts.Update(dlg.HostConfig);
+                    _hosts.Save();
+                    LoadHosts();
+                    SetStatus("Updated: " + dlg.HostConfig.Name);
+                }
+                catch (ArgumentException ex)
+                {
+                    MessageBox.Show(ex.Message, "Validation Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
             }
         }
 
@@ -141,55 +148,28 @@ namespace RdpSolution.UI.Forms
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
 
-            if (answer != DialogResult.Yes)
-                return;
+            if (answer != DialogResult.Yes) return;
 
-            _repository.Delete(host.Id);
-            _repository.Save();
+            _hosts.Delete(host.Id);
+            _hosts.Save();
             LoadHosts();
             SetStatus("Deleted: " + host.Name);
         }
 
-        private void ExportRdpSelected()
-        {
-            var host = SelectedHost();
-            if (host == null) return;
-
-            using (var dlg = new SaveFileDialog())
-            {
-                dlg.Title            = "Export RDP File";
-                dlg.Filter           = "RDP Files (*.rdp)|*.rdp|All Files (*.*)|*.*";
-                dlg.FileName         = host.Name + ".rdp";
-                dlg.DefaultExt       = "rdp";
-                dlg.OverwritePrompt  = true;
-
-                if (dlg.ShowDialog(this) != DialogResult.OK)
-                    return;
-
-                var content = _connectionService.GenerateRdpFileContent(host);
-                File.WriteAllText(dlg.FileName, content, System.Text.Encoding.UTF8);
-                SetStatus("Exported: " + dlg.FileName);
-            }
-        }
-
-        private void SetStatus(string text)
-        {
-            statusLabel.Text = text;
-        }
+        private void SetStatus(string text) => statusLabel.Text = text;
 
         // ------------------------------------------------------------------ event handlers
 
-        private void btnConnect_Click(object sender, EventArgs e)  => ConnectToSelected();
-        private void btnAdd_Click(object sender, EventArgs e)      => AddHost();
-        private void btnEdit_Click(object sender, EventArgs e)     => EditSelected();
-        private void btnDelete_Click(object sender, EventArgs e)   => DeleteSelected();
+        private void btnConnect_Click(object sender, EventArgs e) => ConnectToSelected();
+        private void btnAdd_Click(object sender, EventArgs e)     => AddHost();
+        private void btnEdit_Click(object sender, EventArgs e)    => EditSelected();
+        private void btnDelete_Click(object sender, EventArgs e)  => DeleteSelected();
 
-        private void connectToolStripMenuItem_Click(object sender, EventArgs e)     => ConnectToSelected();
-        private void addHostToolStripMenuItem_Click(object sender, EventArgs e)     => AddHost();
-        private void editHostToolStripMenuItem_Click(object sender, EventArgs e)    => EditSelected();
-        private void deleteHostToolStripMenuItem_Click(object sender, EventArgs e)  => DeleteSelected();
-        private void exportRdpToolStripMenuItem_Click(object sender, EventArgs e)   => ExportRdpSelected();
-        private void exitToolStripMenuItem_Click(object sender, EventArgs e)        => Application.Exit();
+        private void connectToolStripMenuItem_Click(object sender, EventArgs e)    => ConnectToSelected();
+        private void addHostToolStripMenuItem_Click(object sender, EventArgs e)    => AddHost();
+        private void editHostToolStripMenuItem_Click(object sender, EventArgs e)   => EditSelected();
+        private void deleteHostToolStripMenuItem_Click(object sender, EventArgs e) => DeleteSelected();
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)       => Application.Exit();
 
         private void listViewHosts_SelectedIndexChanged(object sender, EventArgs e) => UpdateButtonStates();
         private void listViewHosts_DoubleClick(object sender, EventArgs e)          => ConnectToSelected();

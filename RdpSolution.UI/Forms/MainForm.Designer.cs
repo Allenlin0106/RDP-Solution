@@ -21,8 +21,6 @@ namespace RdpSolution.UI.Forms
             this.editHostToolStripMenuItem   = new System.Windows.Forms.ToolStripMenuItem();
             this.deleteHostToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator1         = new System.Windows.Forms.ToolStripSeparator();
-            this.exportRdpToolStripMenuItem  = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripSeparator2         = new System.Windows.Forms.ToolStripSeparator();
             this.connectToolStripMenuItem    = new System.Windows.Forms.ToolStripMenuItem();
             this.panelButtons                = new System.Windows.Forms.Panel();
             this.btnAdd                      = new System.Windows.Forms.Button();
@@ -71,8 +69,6 @@ namespace RdpSolution.UI.Forms
                 this.editHostToolStripMenuItem,
                 this.deleteHostToolStripMenuItem,
                 this.toolStripSeparator1,
-                this.exportRdpToolStripMenuItem,
-                this.toolStripSeparator2,
                 this.connectToolStripMenuItem });
             this.hostsToolStripMenuItem.Name = "hostsToolStripMenuItem";
             this.hostsToolStripMenuItem.Size = new System.Drawing.Size(50, 20);
@@ -80,42 +76,32 @@ namespace RdpSolution.UI.Forms
 
             this.addHostToolStripMenuItem.Name         = "addHostToolStripMenuItem";
             this.addHostToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.N;
-            this.addHostToolStripMenuItem.Size         = new System.Drawing.Size(195, 22);
+            this.addHostToolStripMenuItem.Size         = new System.Drawing.Size(180, 22);
             this.addHostToolStripMenuItem.Text         = "&Add Host…";
             this.addHostToolStripMenuItem.Click       += new System.EventHandler(this.addHostToolStripMenuItem_Click);
 
             this.editHostToolStripMenuItem.Enabled      = false;
             this.editHostToolStripMenuItem.Name         = "editHostToolStripMenuItem";
             this.editHostToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.F2;
-            this.editHostToolStripMenuItem.Size         = new System.Drawing.Size(195, 22);
+            this.editHostToolStripMenuItem.Size         = new System.Drawing.Size(180, 22);
             this.editHostToolStripMenuItem.Text         = "&Edit Host…";
             this.editHostToolStripMenuItem.Click       += new System.EventHandler(this.editHostToolStripMenuItem_Click);
 
             this.deleteHostToolStripMenuItem.Enabled      = false;
             this.deleteHostToolStripMenuItem.Name         = "deleteHostToolStripMenuItem";
             this.deleteHostToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.Delete;
-            this.deleteHostToolStripMenuItem.Size         = new System.Drawing.Size(195, 22);
+            this.deleteHostToolStripMenuItem.Size         = new System.Drawing.Size(180, 22);
             this.deleteHostToolStripMenuItem.Text         = "&Delete Host";
             this.deleteHostToolStripMenuItem.Click       += new System.EventHandler(this.deleteHostToolStripMenuItem_Click);
 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
-            this.toolStripSeparator1.Size = new System.Drawing.Size(192, 6);
-
-            this.exportRdpToolStripMenuItem.Enabled      = false;
-            this.exportRdpToolStripMenuItem.Name         = "exportRdpToolStripMenuItem";
-            this.exportRdpToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.E;
-            this.exportRdpToolStripMenuItem.Size         = new System.Drawing.Size(195, 22);
-            this.exportRdpToolStripMenuItem.Text         = "E&xport .rdp…";
-            this.exportRdpToolStripMenuItem.Click       += new System.EventHandler(this.exportRdpToolStripMenuItem_Click);
-
-            this.toolStripSeparator2.Name = "toolStripSeparator2";
-            this.toolStripSeparator2.Size = new System.Drawing.Size(192, 6);
+            this.toolStripSeparator1.Size = new System.Drawing.Size(177, 6);
 
             this.connectToolStripMenuItem.Enabled      = false;
             this.connectToolStripMenuItem.Font         = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
             this.connectToolStripMenuItem.Name         = "connectToolStripMenuItem";
             this.connectToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.F5;
-            this.connectToolStripMenuItem.Size         = new System.Drawing.Size(195, 22);
+            this.connectToolStripMenuItem.Size         = new System.Drawing.Size(180, 22);
             this.connectToolStripMenuItem.Text         = "&Connect";
             this.connectToolStripMenuItem.Click       += new System.EventHandler(this.connectToolStripMenuItem_Click);
 
@@ -124,9 +110,9 @@ namespace RdpSolution.UI.Forms
             this.panelButtons.Controls.Add(this.btnEdit);
             this.panelButtons.Controls.Add(this.btnDelete);
             this.panelButtons.Controls.Add(this.btnConnect);
-            this.panelButtons.Dock    = System.Windows.Forms.DockStyle.Bottom;
-            this.panelButtons.Height  = 44;
-            this.panelButtons.Name    = "panelButtons";
+            this.panelButtons.Dock     = System.Windows.Forms.DockStyle.Bottom;
+            this.panelButtons.Height   = 44;
+            this.panelButtons.Name     = "panelButtons";
             this.panelButtons.TabIndex = 2;
 
             this.btnAdd.Location = new System.Drawing.Point(8, 8);
@@ -169,16 +155,16 @@ namespace RdpSolution.UI.Forms
                 this.columnHeaderPort,
                 this.columnHeaderUsername,
                 this.columnHeaderDomain });
-            this.listViewHosts.Dock                           = System.Windows.Forms.DockStyle.Fill;
-            this.listViewHosts.FullRowSelect                  = true;
-            this.listViewHosts.GridLines                      = true;
-            this.listViewHosts.MultiSelect                    = false;
-            this.listViewHosts.Name                           = "listViewHosts";
-            this.listViewHosts.TabIndex                       = 1;
+            this.listViewHosts.Dock                            = System.Windows.Forms.DockStyle.Fill;
+            this.listViewHosts.FullRowSelect                   = true;
+            this.listViewHosts.GridLines                       = true;
+            this.listViewHosts.MultiSelect                     = false;
+            this.listViewHosts.Name                            = "listViewHosts";
+            this.listViewHosts.TabIndex                        = 1;
             this.listViewHosts.UseCompatibleStateImageBehavior = false;
-            this.listViewHosts.View                           = System.Windows.Forms.View.Details;
-            this.listViewHosts.SelectedIndexChanged          += new System.EventHandler(this.listViewHosts_SelectedIndexChanged);
-            this.listViewHosts.DoubleClick                   += new System.EventHandler(this.listViewHosts_DoubleClick);
+            this.listViewHosts.View                            = System.Windows.Forms.View.Details;
+            this.listViewHosts.SelectedIndexChanged           += new System.EventHandler(this.listViewHosts_SelectedIndexChanged);
+            this.listViewHosts.DoubleClick                    += new System.EventHandler(this.listViewHosts_DoubleClick);
 
             this.columnHeaderName.Text  = "Name";
             this.columnHeaderName.Width = 190;
@@ -207,8 +193,8 @@ namespace RdpSolution.UI.Forms
 
             // ---- MainForm ----
             // Controls added in this order so Dock resolution gives:
-            //   menuStrip  → top edge
-            //   statusStrip → bottom edge (added first = furthest-bottom docked)
+            //   menuStrip    → top edge
+            //   statusStrip  → bottom edge (added first = furthest-bottom docked)
             //   panelButtons → bottom edge (added second = above statusStrip)
             //   listViewHosts → Fill (remaining space)
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -233,29 +219,27 @@ namespace RdpSolution.UI.Forms
         }
 
         // ---- field declarations ----
-        private System.Windows.Forms.MenuStrip           menuStrip1;
-        private System.Windows.Forms.ToolStripMenuItem   fileToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem   exitToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem   hostsToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem   addHostToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem   editHostToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem   deleteHostToolStripMenuItem;
-        private System.Windows.Forms.ToolStripSeparator  toolStripSeparator1;
-        private System.Windows.Forms.ToolStripMenuItem   exportRdpToolStripMenuItem;
-        private System.Windows.Forms.ToolStripSeparator  toolStripSeparator2;
-        private System.Windows.Forms.ToolStripMenuItem   connectToolStripMenuItem;
-        private System.Windows.Forms.Panel               panelButtons;
-        private System.Windows.Forms.Button              btnAdd;
-        private System.Windows.Forms.Button              btnEdit;
-        private System.Windows.Forms.Button              btnDelete;
-        private System.Windows.Forms.Button              btnConnect;
-        private System.Windows.Forms.ListView            listViewHosts;
-        private System.Windows.Forms.ColumnHeader        columnHeaderName;
-        private System.Windows.Forms.ColumnHeader        columnHeaderHost;
-        private System.Windows.Forms.ColumnHeader        columnHeaderPort;
-        private System.Windows.Forms.ColumnHeader        columnHeaderUsername;
-        private System.Windows.Forms.ColumnHeader        columnHeaderDomain;
-        private System.Windows.Forms.StatusStrip         statusStrip1;
+        private System.Windows.Forms.MenuStrip            menuStrip1;
+        private System.Windows.Forms.ToolStripMenuItem    fileToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem    exitToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem    hostsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem    addHostToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem    editHostToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem    deleteHostToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator   toolStripSeparator1;
+        private System.Windows.Forms.ToolStripMenuItem    connectToolStripMenuItem;
+        private System.Windows.Forms.Panel                panelButtons;
+        private System.Windows.Forms.Button               btnAdd;
+        private System.Windows.Forms.Button               btnEdit;
+        private System.Windows.Forms.Button               btnDelete;
+        private System.Windows.Forms.Button               btnConnect;
+        private System.Windows.Forms.ListView             listViewHosts;
+        private System.Windows.Forms.ColumnHeader         columnHeaderName;
+        private System.Windows.Forms.ColumnHeader         columnHeaderHost;
+        private System.Windows.Forms.ColumnHeader         columnHeaderPort;
+        private System.Windows.Forms.ColumnHeader         columnHeaderUsername;
+        private System.Windows.Forms.ColumnHeader         columnHeaderDomain;
+        private System.Windows.Forms.StatusStrip          statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel statusLabel;
     }
 }
