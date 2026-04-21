@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace RdpSolution.UI.RdpClient
@@ -43,11 +44,43 @@ namespace RdpSolution.UI.RdpClient
         private Timer  _pollTimer;
         private int    _lastState = -1;
 
+        // ------------------------------------------------------------------ events
+
+        /// <summary>Raised on the UI thread when the session becomes fully connected.</summary>
+        public event EventHandler RdpConnected;
+
+        /// <summary>Raised on the UI thread when the session disconnects.</summary>
+        public event EventHandler<RdpDisconnectedEventArgs> RdpDisconnected;
+
+        /// <summary>
+        /// Raised when the COM class cannot be created (e.g. REGDB_E_CLASSNOTREG).
+        /// The Message property carries a human-readable explanation.
+        /// </summary>
+        public event EventHandler<CreateFailedEventArgs> CreateFailed;
+
         // ------------------------------------------------------------------ ctor / AxHost
 
         public MsRdpClientControl() : base(s_clsid)
         {
             TabStop = false;
+        }
+
+        protected override void CreateHandle()
+        {
+            try
+            {
+                base.CreateHandle();
+            }
+            catch (COMException ex) when (ex.ErrorCode == unchecked((int)0x80040154))
+            {
+                CreateFailed?.Invoke(this, new CreateFailedEventArgs(
+                    "The Remote Desktop ActiveX control (MsTscAx.dll) is not registered on this machine.\n\n" +
+                    "Ensure mstsc.exe is present and the UI project targets x86 (32-bit)."));
+            }
+            catch (Exception ex)
+            {
+                CreateFailed?.Invoke(this, new CreateFailedEventArgs(ex.Message));
+            }
         }
 
         protected override void AttachInterfaces()
@@ -150,12 +183,6 @@ namespace RdpSolution.UI.RdpClient
 
         // ------------------------------------------------------------------ events (polled)
 
-        /// <summary>Raised on the UI thread when the session becomes fully connected.</summary>
-        public event EventHandler RdpConnected;
-
-        /// <summary>Raised on the UI thread when the session disconnects.</summary>
-        public event EventHandler<RdpDisconnectedEventArgs> RdpDisconnected;
-
         private void StartPollTimer()
         {
             _pollTimer = new Timer { Interval = 400 };
@@ -255,5 +282,11 @@ namespace RdpSolution.UI.RdpClient
             }
             catch { }
         }
+    }
+
+    public sealed class CreateFailedEventArgs : EventArgs
+    {
+        public string Message { get; }
+        public CreateFailedEventArgs(string message) { Message = message; }
     }
 }

@@ -174,6 +174,7 @@ namespace RdpSolution.UI.Forms
                 _rdp = new MsRdpClientControl { Dock = DockStyle.Fill };
                 _rdp.RdpConnected    += (s, e) => OnConnected();
                 _rdp.RdpDisconnected += (s, e) => OnDisconnected(e);
+                _rdp.CreateFailed    += (s, e) => ShowComError(e.Message);
 
                 // Controls.Add: Fill must come before Top so docking resolves correctly
                 page.Controls.Add(_rdp);
@@ -231,6 +232,21 @@ namespace RdpSolution.UI.Forms
                     "Disconnected  \u2013  " + e.ReasonDescription,
                     actionText: "&Reconnect",
                     actionEnabled: true);
+            }
+
+            private void ShowComError(string message)
+            {
+                // Replace the RDP control with a readable error label
+                _rdp.Visible = false;
+                var lbl = new Label
+                {
+                    Dock      = DockStyle.Fill,
+                    TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
+                    ForeColor = System.Drawing.Color.Firebrick,
+                    Text      = "RDP control unavailable:\n\n" + message
+                };
+                Page.Controls.Add(lbl);
+                SetState("⚠ " + _host.Name, "Error: RDP control unavailable", actionText: "N/A", actionEnabled: false);
             }
 
             private void BtnAction_Click(object sender, EventArgs e)
