@@ -38,6 +38,7 @@ namespace RdpSolution.UI.RdpClient
                     case 2308: return "Connection lost";
                     case 2311: return "Licensing protocol error";
                     case 2567: return "Disconnected by administrator";
+                    case 2825: return "Session terminated by remote server";
                     default:   return "Disconnect code " + Reason;
                 }
             }
