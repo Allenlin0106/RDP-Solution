@@ -2,6 +2,8 @@ using System;
 using System.Configuration;
 using System.IO;
 using System.Windows.Forms;
+using RdpSolution.BLL.Interfaces;
+using RdpSolution.BLL.Services;
 using RdpSolution.DAL.Interfaces;
 using RdpSolution.DAL.Models;
 using RdpSolution.DAL.Repositories;
@@ -11,18 +13,19 @@ namespace RdpSolution.UI.Forms
     public partial class MainForm : Form
     {
         private readonly IHostConfigRepository _repository;
+        private readonly IConnectionService    _connectionService;
 
         public MainForm()
         {
             InitializeComponent();
 
-            // Resolve config path: relative paths are anchored to the exe directory.
             var rawPath    = ConfigurationManager.AppSettings["HostsConfigPath"] ?? "hosts.xml";
             var configPath = Path.IsPathRooted(rawPath)
                 ? rawPath
                 : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, rawPath);
 
-            _repository = new XmlHostConfigRepository(configPath);
+            _repository        = new XmlHostConfigRepository(configPath);
+            _connectionService = new ConnectionService();
 
             LoadHosts();
         }
@@ -63,12 +66,13 @@ namespace RdpSolution.UI.Forms
         {
             bool sel = listViewHosts.SelectedItems.Count > 0;
 
-            btnConnect.Enabled              = sel;
-            btnEdit.Enabled                 = sel;
-            btnDelete.Enabled               = sel;
-            connectToolStripMenuItem.Enabled = sel;
-            editHostToolStripMenuItem.Enabled   = sel;
-            deleteHostToolStripMenuItem.Enabled = sel;
+            btnConnect.Enabled                   = sel;
+            btnEdit.Enabled                      = sel;
+            btnDelete.Enabled                    = sel;
+            connectToolStripMenuItem.Enabled     = sel;
+            editHostToolStripMenuItem.Enabled    = sel;
+            deleteHostToolStripMenuItem.Enabled  = sel;
+            exportRdpToolStripMenuItem.Enabled   = sel;
         }
 
         // ------------------------------------------------------------------ actions
@@ -146,6 +150,28 @@ namespace RdpSolution.UI.Forms
             SetStatus("Deleted: " + host.Name);
         }
 
+        private void ExportRdpSelected()
+        {
+            var host = SelectedHost();
+            if (host == null) return;
+
+            using (var dlg = new SaveFileDialog())
+            {
+                dlg.Title            = "Export RDP File";
+                dlg.Filter           = "RDP Files (*.rdp)|*.rdp|All Files (*.*)|*.*";
+                dlg.FileName         = host.Name + ".rdp";
+                dlg.DefaultExt       = "rdp";
+                dlg.OverwritePrompt  = true;
+
+                if (dlg.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                var content = _connectionService.GenerateRdpFileContent(host);
+                File.WriteAllText(dlg.FileName, content, System.Text.Encoding.UTF8);
+                SetStatus("Exported: " + dlg.FileName);
+            }
+        }
+
         private void SetStatus(string text)
         {
             statusLabel.Text = text;
@@ -158,11 +184,12 @@ namespace RdpSolution.UI.Forms
         private void btnEdit_Click(object sender, EventArgs e)     => EditSelected();
         private void btnDelete_Click(object sender, EventArgs e)   => DeleteSelected();
 
-        private void connectToolStripMenuItem_Click(object sender, EventArgs e)    => ConnectToSelected();
-        private void addHostToolStripMenuItem_Click(object sender, EventArgs e)    => AddHost();
-        private void editHostToolStripMenuItem_Click(object sender, EventArgs e)   => EditSelected();
-        private void deleteHostToolStripMenuItem_Click(object sender, EventArgs e) => DeleteSelected();
-        private void exitToolStripMenuItem_Click(object sender, EventArgs e)       => Application.Exit();
+        private void connectToolStripMenuItem_Click(object sender, EventArgs e)     => ConnectToSelected();
+        private void addHostToolStripMenuItem_Click(object sender, EventArgs e)     => AddHost();
+        private void editHostToolStripMenuItem_Click(object sender, EventArgs e)    => EditSelected();
+        private void deleteHostToolStripMenuItem_Click(object sender, EventArgs e)  => DeleteSelected();
+        private void exportRdpToolStripMenuItem_Click(object sender, EventArgs e)   => ExportRdpSelected();
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)        => Application.Exit();
 
         private void listViewHosts_SelectedIndexChanged(object sender, EventArgs e) => UpdateButtonStates();
         private void listViewHosts_DoubleClick(object sender, EventArgs e)          => ConnectToSelected();

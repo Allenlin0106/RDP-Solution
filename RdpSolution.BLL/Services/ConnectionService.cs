@@ -6,8 +6,8 @@ using RdpSolution.DAL.Models;
 namespace RdpSolution.BLL.Services
 {
     /// <summary>
-    /// Builds a standard .rdp file from a <see cref="RemoteHostConfig"/> and launches
-    /// the system mstsc.exe client to initiate the connection.
+    /// Builds a standard .rdp file from a <see cref="RemoteHostConfig"/>,
+    /// suitable for saving to disk or passing to an external client.
     /// </summary>
     public class ConnectionService : IConnectionService
     {

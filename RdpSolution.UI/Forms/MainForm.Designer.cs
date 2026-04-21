@@ -21,6 +21,8 @@ namespace RdpSolution.UI.Forms
             this.editHostToolStripMenuItem   = new System.Windows.Forms.ToolStripMenuItem();
             this.deleteHostToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator1         = new System.Windows.Forms.ToolStripSeparator();
+            this.exportRdpToolStripMenuItem  = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator2         = new System.Windows.Forms.ToolStripSeparator();
             this.connectToolStripMenuItem    = new System.Windows.Forms.ToolStripMenuItem();
             this.panelButtons                = new System.Windows.Forms.Panel();
             this.btnAdd                      = new System.Windows.Forms.Button();
@@ -69,6 +71,8 @@ namespace RdpSolution.UI.Forms
                 this.editHostToolStripMenuItem,
                 this.deleteHostToolStripMenuItem,
                 this.toolStripSeparator1,
+                this.exportRdpToolStripMenuItem,
+                this.toolStripSeparator2,
                 this.connectToolStripMenuItem });
             this.hostsToolStripMenuItem.Name = "hostsToolStripMenuItem";
             this.hostsToolStripMenuItem.Size = new System.Drawing.Size(50, 20);
@@ -96,6 +100,16 @@ namespace RdpSolution.UI.Forms
 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
             this.toolStripSeparator1.Size = new System.Drawing.Size(192, 6);
+
+            this.exportRdpToolStripMenuItem.Enabled      = false;
+            this.exportRdpToolStripMenuItem.Name         = "exportRdpToolStripMenuItem";
+            this.exportRdpToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.E;
+            this.exportRdpToolStripMenuItem.Size         = new System.Drawing.Size(195, 22);
+            this.exportRdpToolStripMenuItem.Text         = "E&xport .rdp…";
+            this.exportRdpToolStripMenuItem.Click       += new System.EventHandler(this.exportRdpToolStripMenuItem_Click);
+
+            this.toolStripSeparator2.Name = "toolStripSeparator2";
+            this.toolStripSeparator2.Size = new System.Drawing.Size(192, 6);
 
             this.connectToolStripMenuItem.Enabled      = false;
             this.connectToolStripMenuItem.Font         = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
@@ -227,6 +241,8 @@ namespace RdpSolution.UI.Forms
         private System.Windows.Forms.ToolStripMenuItem   editHostToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem   deleteHostToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator  toolStripSeparator1;
+        private System.Windows.Forms.ToolStripMenuItem   exportRdpToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator  toolStripSeparator2;
         private System.Windows.Forms.ToolStripMenuItem   connectToolStripMenuItem;
         private System.Windows.Forms.Panel               panelButtons;
         private System.Windows.Forms.Button              btnAdd;
