@@ -134,71 +134,87 @@ namespace RdpSolution.UI.VncClient
                 bool hasType17 = Array.IndexOf(types, (byte)17) >= 0;
                 bool hasType2  = Array.IndexOf(types, (byte)2)  >= 0;
 
-                // Prefer type 17 for MS-Logon II; older UltraVNC may only offer type 2
-                // even when MS-Logon II is configured, so fall through to type 2.
+                // UltraVNC MS-Logon II is always under outer type 17 (rfbUltraVNC);
+                // type 2 carries only standard VNC Password auth.
                 byte chosen;
-                if (_host.VncAuthType == VncAuthType.MsLogon)
-                {
-                    if (hasType17)     chosen = 17;
-                    else if (hasType2) chosen = 2;
-                    else               chosen = 1;
-                }
+                if (_host.VncAuthType == VncAuthType.MsLogon && hasType17)
+                    chosen = 17;
+                else if (hasType2)
+                    chosen = 2;
                 else
-                {
-                    if (hasType2)      chosen = 2;
-                    else               chosen = 1;
-                }
+                    chosen = 1;
 
                 _stream.WriteByte(chosen);
 
                 if (chosen == 17)
                 {
+                    // UltraVNC sub-type negotiation: server sends count + list of sub-types.
+                    int subCount = _stream.ReadByte();
+                    if (subCount < 0)
+                        throw new InvalidOperationException("Connection closed during UltraVNC sub-type negotiation.");
+
+                    byte[] subTypes = new byte[subCount];
+                    if (subCount > 0) ReadFull(subTypes);
+
+                    if (Array.IndexOf(subTypes, (byte)0x71) < 0)
+                        throw new InvalidOperationException(
+                            "UltraVNC server does not offer MS-Logon II (0x71). " +
+                            "Offered sub-types: " +
+                            (subCount == 0 ? "(none)" : string.Join(", ", subTypes)));
+
+                    _stream.WriteByte(0x71); // select MS-Logon II
+
                     AuthMsLogon(
                         _host.Username ?? string.Empty,
                         _host.Domain   ?? string.Empty,
                         _host.Password ?? string.Empty);
+
+                    uint authResult = ReadUInt32BE();
+                    if (authResult != 0)
+                        throw new InvalidOperationException(
+                            "UltraVNC MS-Logon II authentication failed (result " + authResult + ").");
                 }
                 else if (chosen == 2)
                 {
-                    if (_host.VncAuthType == VncAuthType.MsLogon)
+                    AuthVncPassword(_host.Password ?? string.Empty);
+                    uint result = ReadUInt32BE();
+                    if (result != 0)
                     {
-                        // Older UltraVNC: MS-Logon II signalled over security type 2
-                        AuthMsLogon(
-                            _host.Username ?? string.Empty,
-                            _host.Domain   ?? string.Empty,
-                            _host.Password ?? string.Empty);
-                    }
-                    else
-                    {
-                        AuthVncPassword(_host.Password ?? string.Empty);
-                        uint result = ReadUInt32BE();
-                        if (result != 0)
-                        {
-                            uint reasonLen = ReadUInt32BE();
-                            byte[] rb = new byte[reasonLen];
-                            ReadFull(rb);
-                            throw new InvalidOperationException(
-                                "VNC authentication failed: " + Encoding.UTF8.GetString(rb));
-                        }
+                        uint reasonLen = ReadUInt32BE();
+                        byte[] rb = new byte[reasonLen];
+                        ReadFull(rb);
+                        throw new InvalidOperationException(
+                            "VNC authentication failed: " + Encoding.UTF8.GetString(rb));
                     }
                 }
                 // chosen == 1 (None): no auth body
             }
             else
             {
-                // RFB 3.3: server dictates security type
+                // RFB 3.3: server dictates the security type as a 32-bit value.
                 uint secType = ReadUInt32BE();
-                if (secType == 2)
+                if (secType == 0)
+                {
+                    throw new InvalidOperationException("Server sent security failure.");
+                }
+                else if (secType == 2)
                 {
                     AuthVncPassword(_host.Password ?? string.Empty);
                     uint result = ReadUInt32BE();
                     if (result != 0)
                         throw new InvalidOperationException("VNC authentication failed.");
                 }
-                else if (secType == 0)
+                else if (secType == 0xfffffffa) // Legacy UltraVNC MS-Logon II (pre-3.8)
                 {
-                    throw new InvalidOperationException("Server sent security failure.");
+                    AuthMsLogon(
+                        _host.Username ?? string.Empty,
+                        _host.Domain   ?? string.Empty,
+                        _host.Password ?? string.Empty);
+                    uint result = ReadUInt32BE();
+                    if (result != 0)
+                        throw new InvalidOperationException("UltraVNC MS-Logon II authentication failed.");
                 }
+                // secType == 1 (None): no auth
             }
 
             // 3. ClientInit — shared=1
@@ -440,44 +456,37 @@ namespace RdpSolution.UI.VncClient
 
         private void AuthMsLogon(string username, string domain, string password)
         {
-            // Receive DH parameters
+            // DH parameters sent big-endian (UltraVNC dh.cpp int64ToBytes / bytesToInt64)
             ulong g         = ReadUInt64BE();
             ulong p         = ReadUInt64BE();
             ulong serverPub = ReadUInt64BE();
 
-            // Generate client private key
+            // UltraVNC limits the DH private key to 31 bits (DH_MAX_BITS = 31)
             byte[] rnd = new byte[8];
             using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(rnd);
-            ulong clientPriv = BitConverter.ToUInt64(rnd, 0);
-            if (clientPriv == 0) clientPriv = 1;
+            ulong clientPriv = (BitConverter.ToUInt64(rnd, 0) % ((1UL << 31) - 1)) + 1;
 
-            // Compute keys
             ulong clientPub = ModPow(g, clientPriv, p);
             ulong shared    = ModPow(serverPub, clientPriv, p);
 
-            // Send client public key
             WriteUInt64BE(clientPub);
 
-            // Derive DES key from shared secret (big-endian byte array)
+            // DES key = shared secret as 8 big-endian bytes; no bit-reversal (unlike VNC Password)
             byte[] desKey = new byte[8];
             for (int i = 0; i < 8; i++)
                 desKey[i] = (byte)(shared >> (56 - 8 * i));
 
-            // Build and encrypt credential buffers
             string userField = string.IsNullOrEmpty(domain)
                 ? username
                 : domain + "\\" + username;
 
-            byte[] encUser = DesEncryptCbc(desKey, PadToSize(userField, 256));
-            byte[] encPass = DesEncryptCbc(desKey, PadToSize(password,  64));
+            // UltraVNC vncEncryptBytes2: DES-CBC where IV = key (not zero)
+            byte[] encUser = DesEncryptMsLogon(desKey, PadToSize(userField, 256));
+            byte[] encPass = DesEncryptMsLogon(desKey, PadToSize(password,  64));
 
             _stream.Write(encUser, 0, 256);
             _stream.Write(encPass, 0,  64);
-
-            // Read result
-            uint result = ReadUInt32BE();
-            if (result != 0)
-                throw new InvalidOperationException("MS-Logon II authentication failed.");
+            // Auth result (4-byte SecurityResult) is read by the caller, not here.
         }
 
         private static ulong ModPow(ulong b, ulong e, ulong m)
@@ -495,12 +504,14 @@ namespace RdpSolution.UI.VncClient
             return buf;
         }
 
-        private static byte[] DesEncryptCbc(byte[] key8, byte[] data)
+        // UltraVNC vncEncryptBytes2: DES-CBC with IV = key (not zero IV).
+        // This matches: C0=DES_K(P0 XOR K), Ci=DES_K(Pi XOR C(i-1)).
+        private static byte[] DesEncryptMsLogon(byte[] key8, byte[] data)
         {
             using (var des = new DESCryptoServiceProvider())
             {
                 des.Key     = key8;
-                des.IV      = new byte[8];
+                des.IV      = key8;   // UltraVNC: IV equals the key
                 des.Mode    = CipherMode.CBC;
                 des.Padding = PaddingMode.None;
                 using (var enc = des.CreateEncryptor())
