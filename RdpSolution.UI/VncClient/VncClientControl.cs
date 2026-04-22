@@ -131,39 +131,56 @@ namespace RdpSolution.UI.VncClient
                 byte[] types = new byte[typeCount];
                 ReadFull(types);
 
-                // Prefer MS-Logon II (17) when configured, otherwise VNC Auth (2), then None (1).
-                byte chosen;
                 bool hasType17 = Array.IndexOf(types, (byte)17) >= 0;
                 bool hasType2  = Array.IndexOf(types, (byte)2)  >= 0;
 
-                if (hasType17 && _host.VncAuthType == VncAuthType.MsLogon)
-                    chosen = 17;
-                else if (hasType2)
-                    chosen = 2;
+                // Prefer type 17 for MS-Logon II; older UltraVNC may only offer type 2
+                // even when MS-Logon II is configured, so fall through to type 2.
+                byte chosen;
+                if (_host.VncAuthType == VncAuthType.MsLogon)
+                {
+                    if (hasType17)     chosen = 17;
+                    else if (hasType2) chosen = 2;
+                    else               chosen = 1;
+                }
                 else
-                    chosen = 1;
+                {
+                    if (hasType2)      chosen = 2;
+                    else               chosen = 1;
+                }
 
                 _stream.WriteByte(chosen);
 
-                if (chosen == 2)
-                {
-                    AuthVncPassword(_host.Password ?? string.Empty);
-                    uint result = ReadUInt32BE();
-                    if (result != 0)
-                    {
-                        uint reasonLen = ReadUInt32BE();
-                        byte[] rb = new byte[reasonLen];
-                        ReadFull(rb);
-                        throw new InvalidOperationException(
-                            "VNC authentication failed: " + Encoding.UTF8.GetString(rb));
-                    }
-                }
-                else if (chosen == 17)
+                if (chosen == 17)
                 {
                     AuthMsLogon(
                         _host.Username ?? string.Empty,
                         _host.Domain   ?? string.Empty,
                         _host.Password ?? string.Empty);
+                }
+                else if (chosen == 2)
+                {
+                    if (_host.VncAuthType == VncAuthType.MsLogon)
+                    {
+                        // Older UltraVNC: MS-Logon II signalled over security type 2
+                        AuthMsLogon(
+                            _host.Username ?? string.Empty,
+                            _host.Domain   ?? string.Empty,
+                            _host.Password ?? string.Empty);
+                    }
+                    else
+                    {
+                        AuthVncPassword(_host.Password ?? string.Empty);
+                        uint result = ReadUInt32BE();
+                        if (result != 0)
+                        {
+                            uint reasonLen = ReadUInt32BE();
+                            byte[] rb = new byte[reasonLen];
+                            ReadFull(rb);
+                            throw new InvalidOperationException(
+                                "VNC authentication failed: " + Encoding.UTF8.GetString(rb));
+                        }
+                    }
                 }
                 // chosen == 1 (None): no auth body
             }
@@ -248,6 +265,10 @@ namespace RdpSolution.UI.VncClient
                     case 1: SkipColourMapEntries();    break;
                     case 2: /* Bell — no-op */         break;
                     case 3: SkipServerCutText();       break;
+                    default:
+                        throw new System.IO.IOException(
+                            "Unsupported server message type " + msgType +
+                            ". Stream is now corrupt; disconnecting.");
                 }
             }
         }
@@ -265,40 +286,86 @@ namespace RdpSolution.UI.VncClient
                 int h        = ReadUInt16BE();
                 int encoding = (int)ReadUInt32BE();
 
-                if (encoding == 0 && w > 0 && h > 0)
+                switch (encoding)
                 {
-                    // Raw: w*h pixels, 4 bytes each (RGBX in our requested format)
-                    byte[] buf = new byte[w * h * 4];
-                    ReadFull(buf);
+                    case 0: // Raw — w*h pixels, 4 bytes each
+                        if (w > 0 && h > 0)
+                            ApplyRawRect(x, y, w, h);
+                        break;
 
-                    lock (_fbLock)
-                    {
-                        if (_framebuffer != null && x + w <= _fbW && y + h <= _fbH)
+                    case -223: // DesktopSize pseudo-encoding — no pixel data; resize framebuffer
+                        ResizeFramebuffer(w, h);
+                        break;
+
+                    case -239: // RichCursor — pixel data + bitmask; read and discard
+                        if (w > 0 && h > 0)
                         {
-                            var rect    = new Rectangle(x, y, w, h);
-                            var bmpData = _framebuffer.LockBits(rect,
-                                ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
-                            try
-                            {
-                                // Copy row-by-row: bmpData.Stride may be wider than w*4
-                                int rowBytes = w * 4;
-                                IntPtr scan0 = bmpData.Scan0;
-                                for (int row = 0; row < h; row++)
-                                {
-                                    System.Runtime.InteropServices.Marshal.Copy(
-                                        buf, row * rowBytes,
-                                        new IntPtr(scan0.ToInt64() + (long)row * bmpData.Stride),
-                                        rowBytes);
-                                }
-                            }
-                            finally { _framebuffer.UnlockBits(bmpData); }
+                            ReadFull(new byte[w * h * 4]);              // cursor pixel data
+                            ReadFull(new byte[((w + 7) / 8) * h]);      // bitmask
                         }
-                    }
+                        break;
+
+                    case -240: // XCursor — fore+back bitmasks only
+                        if (w > 0 && h > 0)
+                            ReadFull(new byte[((w + 7) / 8) * h * 2]);  // two bitmasks
+                        break;
+
+                    case 1: // CopyRect — 4-byte source position
+                        ReadFull(new byte[4]);
+                        break;
+
+                    default:
+                        // Unknown encoding: cannot determine payload size; disconnect cleanly.
+                        throw new System.IO.IOException(
+                            "Unsupported rectangle encoding " + encoding +
+                            ". Stream is now corrupt; disconnecting.");
                 }
             }
 
-            BeginInvoke(new Action(Invalidate));
+            if (IsHandleCreated)
+                BeginInvoke(new Action(Invalidate));
             SendFbUpdateRequest(incremental: true);
+        }
+
+        private void ApplyRawRect(int x, int y, int w, int h)
+        {
+            byte[] buf = new byte[w * h * 4];
+            ReadFull(buf);
+
+            lock (_fbLock)
+            {
+                if (_framebuffer == null || x + w > _fbW || y + h > _fbH) return;
+
+                var rect    = new Rectangle(x, y, w, h);
+                var bmpData = _framebuffer.LockBits(rect,
+                    ImageLockMode.WriteOnly, PixelFormat.Format32bppRgb);
+                try
+                {
+                    int rowBytes = w * 4;
+                    IntPtr scan0 = bmpData.Scan0;
+                    for (int row = 0; row < h; row++)
+                    {
+                        System.Runtime.InteropServices.Marshal.Copy(
+                            buf, row * rowBytes,
+                            new IntPtr(scan0.ToInt64() + (long)row * bmpData.Stride),
+                            rowBytes);
+                    }
+                }
+                finally { _framebuffer.UnlockBits(bmpData); }
+            }
+        }
+
+        private void ResizeFramebuffer(int newW, int newH)
+        {
+            if (newW <= 0 || newH <= 0) return;
+            lock (_fbLock)
+            {
+                _fbW = newW;
+                _fbH = newH;
+                var old = _framebuffer;
+                _framebuffer = new Bitmap(newW, newH, PixelFormat.Format32bppRgb);
+                old?.Dispose();
+            }
         }
 
         private void SkipColourMapEntries()
