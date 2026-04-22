@@ -3,95 +3,62 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using AxMSTSCLib;
 using MSTSCLib;
+using RdpSolution.DAL.Models;
+using RdpSolution.UI.SessionClient;
 
 namespace RdpSolution.UI.RdpClient
 {
     /// <summary>
     /// Wraps <see cref="AxMsRdpClient9NotSafeForScripting"/> with a clean public API
-    /// that matches the rest of the UI layer.  The inner AxHost is created lazily in
-    /// <see cref="OnHandleCreated"/> so that any COM registration failure is caught and
-    /// surfaced via <see cref="CreateFailed"/> rather than propagating as an unhandled
+    /// that implements <see cref="IRemoteControl"/>. The inner AxHost is created lazily
+    /// in <see cref="OnHandleCreated"/> so that any COM registration failure is caught
+    /// and surfaced via <see cref="CreateFailed"/> rather than propagating as an unhandled
     /// exception.
     /// </summary>
-    public sealed class MsRdpClientControl : UserControl
+    public sealed class MsRdpClientControl : UserControl, IRemoteControl
     {
         private InternalRdpClient _axRdp;
         private bool _initialized;
 
-        // ------------------------------------------------------------------ events
+        // ------------------------------------------------------------------ IRemoteControl events
 
-        /// <summary>Fired when the RDP session becomes fully connected.</summary>
-        public event EventHandler RdpConnected;
-
-        /// <summary>Fired when the RDP session disconnects.</summary>
-        public event EventHandler<RdpDisconnectedEventArgs> RdpDisconnected;
-
-        /// <summary>
-        /// Fired when the COM ActiveX control cannot be created (e.g. REGDB_E_CLASSNOTREG).
-        /// When this event fires <see cref="Connect"/> and all property setters become no-ops.
-        /// </summary>
+        public event EventHandler Connected;
+        public event EventHandler<DisconnectedEventArgs> Disconnected;
         public event EventHandler<CreateFailedEventArgs> CreateFailed;
 
-        // ------------------------------------------------------------------ state
+        // ------------------------------------------------------------------ IRemoteControl state
 
-        /// <summary>0 = not connected, 1 = connected, 2 = connecting.</summary>
         public int ConnectedState => _initialized ? _axRdp.Connected : 0;
 
-        // ------------------------------------------------------------------ connection properties
+        // ------------------------------------------------------------------ IRemoteControl actions
 
-        public string Server        { set { if (_initialized) _axRdp.Server        = value; } }
-        public string Domain        { set { if (_initialized) _axRdp.Domain        = value; } }
-        public string UserName      { set { if (_initialized) _axRdp.UserName      = value; } }
-        public int    DesktopWidth  { set { if (_initialized) _axRdp.DesktopWidth  = value; } }
-        public int    DesktopHeight { set { if (_initialized) _axRdp.DesktopHeight = value; } }
-        public bool   FullScreen    { set { if (_initialized) _axRdp.FullScreen    = value; } }
-
-        // ------------------------------------------------------------------ advanced settings
-
-        public void SetPort(int port)
+        public void Connect(RemoteHostConfig host)
         {
-            if (_initialized) _axRdp.AdvancedSettings9.RDPPort = port;
-        }
+            if (!_initialized) return;
 
-        public void SetRedirectDrives(bool v)
-        {
-            if (_initialized) _axRdp.AdvancedSettings9.RedirectDrives = v;
-        }
+            _axRdp.Server        = host.Hostname ?? string.Empty;
+            _axRdp.Domain        = host.Domain   ?? string.Empty;
+            _axRdp.UserName      = host.Username ?? string.Empty;
+            _axRdp.DesktopWidth  = host.Width;
+            _axRdp.DesktopHeight = host.Height;
+            _axRdp.FullScreen    = false;
+            _axRdp.AdvancedSettings9.RDPPort         = host.Port;
+            _axRdp.AdvancedSettings9.RedirectDrives   = host.AttachDrives;
+            _axRdp.AdvancedSettings9.RedirectPrinters = host.AttachPrinters;
+            _axRdp.AdvancedSettings9.RedirectClipboard = true;
+            _axRdp.AdvancedSettings9.SmartSizing       = true;
 
-        public void SetRedirectPrinters(bool v)
-        {
-            if (_initialized) _axRdp.AdvancedSettings9.RedirectPrinters = v;
-        }
-
-        public void SetRedirectClipboard(bool v)
-        {
-            if (_initialized) _axRdp.AdvancedSettings9.RedirectClipboard = v;
-        }
-
-        public void SetSmartResize(bool v)
-        {
-            if (_initialized) _axRdp.AdvancedSettings9.SmartSizing = v;
-        }
-
-        // ------------------------------------------------------------------ password
-
-        public void SetPassword(string password)
-        {
-            if (!_initialized || string.IsNullOrEmpty(password)) return;
-            try
+            if (!string.IsNullOrEmpty(host.Password))
             {
-                // IMsTscNonScriptable is IUnknown-only; QueryInterface via COM cast.
-                var ns = _axRdp.GetOcx() as IMsTscNonScriptable;
-                if (ns != null) ns.ClearTextPassword = password;
+                try
+                {
+                    var ns = _axRdp.GetOcx() as IMsTscNonScriptable;
+                    if (ns != null) ns.ClearTextPassword = host.Password;
+                }
+                catch { }
             }
-            catch { }
-        }
 
-        // ------------------------------------------------------------------ actions
-
-        public void Connect()
-        {
-            if (_initialized) _axRdp.Connect();
+            _axRdp.Connect();
         }
 
         public void Disconnect()
@@ -107,12 +74,14 @@ namespace RdpSolution.UI.RdpClient
             try
             {
                 _axRdp = new InternalRdpClient { Dock = DockStyle.Fill };
-                _axRdp.OnConnected    += (s, ev) => RdpConnected?.Invoke(this, EventArgs.Empty);
+                _axRdp.OnConnected    += (s, ev) => Connected?.Invoke(this, EventArgs.Empty);
                 _axRdp.OnDisconnected += (s, ev) =>
-                    RdpDisconnected?.Invoke(this, new RdpDisconnectedEventArgs(
-                        ev.discReason, (int)_axRdp.ExtendedDisconnectReason));
+                {
+                    string reason = TranslateReason(ev.discReason, (int)_axRdp.ExtendedDisconnectReason);
+                    Disconnected?.Invoke(this, new DisconnectedEventArgs(reason));
+                };
 
-                Controls.Add(_axRdp);   // triggers AxHost.CreateHandle() synchronously
+                Controls.Add(_axRdp);
                 _initialized = true;
             }
             catch (COMException ex) when (ex.ErrorCode == unchecked((int)0x80040154))
@@ -133,20 +102,72 @@ namespace RdpSolution.UI.RdpClient
             base.Dispose(disposing);
         }
 
+        // ------------------------------------------------------------------ reason translation
+
+        private static string TranslateReason(int discReason, int extReason)
+        {
+            if (extReason != 0)
+            {
+                switch ((ExtendedDisconnectReasonCode)extReason)
+                {
+                    case ExtendedDisconnectReasonCode.exDiscReasonNoInfo:
+                        break;
+                    case ExtendedDisconnectReasonCode.exDiscReasonAPIInitiatedDisconnect:
+                        return "Disconnected";
+                    case ExtendedDisconnectReasonCode.exDiscReasonAPIInitiatedLogoff:
+                        return "Logged off";
+                    case ExtendedDisconnectReasonCode.exDiscReasonServerIdleTimeout:
+                        return "Idle timeout";
+                    case ExtendedDisconnectReasonCode.exDiscReasonServerLogonTimeout:
+                        return "Logon timeout";
+                    case ExtendedDisconnectReasonCode.exDiscReasonReplacedByOtherConnection:
+                        return "Replaced by another connection";
+                    case ExtendedDisconnectReasonCode.exDiscReasonOutOfMemory:
+                        return "Out of memory";
+                    case ExtendedDisconnectReasonCode.exDiscReasonServerDeniedConnection:
+                        return "Server denied the connection";
+                    case ExtendedDisconnectReasonCode.exDiscReasonServerDeniedConnectionFips:
+                        return "Server denied the connection (FIPS policy)";
+                    case ExtendedDisconnectReasonCode.exDiscReasonServerInsufficientPrivileges:
+                        return "Insufficient privileges";
+                    case ExtendedDisconnectReasonCode.exDiscReasonServerFreshCredentialsRequired:
+                        return "Fresh credentials required";
+                    case ExtendedDisconnectReasonCode.exDiscReasonRPCInitiatedDisconnectByUser:
+                        return "Disconnected by user";
+                    case ExtendedDisconnectReasonCode.exDiscReasonLogoffByUser:
+                        return "Logged off by user";
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseInternal:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseNoLicenseServer:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseNoLicense:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseErrClientMsg:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseHwidDoesntMatchLicense:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseErrClientLicense:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseCantFinishProtocol:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseClientEndedProtocol:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseErrClientEncryption:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseCantUpgradeLicense:
+                    case ExtendedDisconnectReasonCode.exDiscReasonLicenseNoRemoteConnections:
+                        return "Licensing error";
+                    default:
+                        return "Disconnected (extended code " + extReason + ")";
+                }
+            }
+
+            switch (discReason)
+            {
+                case 0:  return "Session ended";
+                case 1:  return "User disconnected locally";
+                case 2:  return "Remote user disconnected";
+                case 3:  return "Server ended the session";
+                default: return "Disconnected (code " + discReason + ")";
+            }
+        }
+
         // ------------------------------------------------------------------ inner helper
 
-        // Exposes the protected AxHost.GetOcx() so we can QueryInterface for
-        // IUnknown-only interfaces (e.g. IMsTscNonScriptable) that are not
-        // reachable through the AxMSTSCLib typed surface.
         private sealed class InternalRdpClient : AxMsRdpClient9NotSafeForScripting
         {
             public new object GetOcx() => base.GetOcx();
         }
-    }
-
-    public sealed class CreateFailedEventArgs : EventArgs
-    {
-        public string Message { get; }
-        public CreateFailedEventArgs(string message) { Message = message; }
     }
 }

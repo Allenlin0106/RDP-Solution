@@ -40,7 +40,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Interfaces\IHostConfigRepository.cs" />
+    <Compile Include="Models\ConnectionProtocol.cs" />
     <Compile Include="Models\RemoteHostConfig.cs" />
+    <Compile Include="Models\VncAuthType.cs" />
     <Compile Include="Repositories\XmlHostConfigRepository.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

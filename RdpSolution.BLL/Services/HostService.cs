@@ -45,9 +45,12 @@ namespace RdpSolution.BLL.Services
                 throw new ArgumentException("Hostname or IP address is required.");
             if (host.Port < 1 || host.Port > 65535)
                 throw new ArgumentException("Port must be between 1 and 65535.");
-            if (host.ColorDepth != 8  && host.ColorDepth != 15 &&
-                host.ColorDepth != 16 && host.ColorDepth != 24 && host.ColorDepth != 32)
-                throw new ArgumentException("Color depth must be 8, 15, 16, 24, or 32.");
+            if (host.Protocol == ConnectionProtocol.RDP)
+            {
+                if (host.ColorDepth != 8  && host.ColorDepth != 15 &&
+                    host.ColorDepth != 16 && host.ColorDepth != 24 && host.ColorDepth != 32)
+                    throw new ArgumentException("Color depth must be 8, 15, 16, 24, or 32.");
+            }
         }
     }
 }

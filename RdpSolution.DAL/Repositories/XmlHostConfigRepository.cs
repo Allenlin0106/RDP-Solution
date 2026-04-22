@@ -65,7 +65,9 @@ namespace RdpSolution.DAL.Repositories
                     AttachPrinters = ReadBool(el,   "AttachPrinters", false),
                     ColorDepth     = ReadInt(el,    "ColorDepth", 32),
                     Notes          = ReadString(el, "Notes"),
-                    Password       = DecryptPassword(ReadString(el, "PasswordEncrypted"))
+                    Password       = DecryptPassword(ReadString(el, "PasswordEncrypted")),
+                    Protocol       = ReadEnum<ConnectionProtocol>(el, "Protocol",    ConnectionProtocol.RDP),
+                    VncAuthType    = ReadEnum<VncAuthType>       (el, "VncAuthType", VncAuthType.VncPassword)
                 });
             }
 
@@ -93,7 +95,9 @@ namespace RdpSolution.DAL.Repositories
                         new XElement("AttachPrinters", h.AttachPrinters),
                         new XElement("ColorDepth",         h.ColorDepth),
                         new XElement("Notes",              h.Notes              ?? string.Empty),
-                        new XElement("PasswordEncrypted",  EncryptPassword(h.Password ?? string.Empty))
+                        new XElement("PasswordEncrypted",  EncryptPassword(h.Password ?? string.Empty)),
+                        new XElement("Protocol",    h.Protocol.ToString()),
+                        new XElement("VncAuthType", h.VncAuthType.ToString())
                     ))
                 )
             );
@@ -175,6 +179,15 @@ namespace RdpSolution.DAL.Repositories
             if (el == null) return defaultValue;
             bool v;
             return bool.TryParse(el.Value, out v) ? v : defaultValue;
+        }
+
+        private static T ReadEnum<T>(XElement parent, string name, T defaultValue)
+            where T : struct
+        {
+            var el = parent.Element(name);
+            if (el == null) return defaultValue;
+            T v;
+            return Enum.TryParse(el.Value, out v) ? v : defaultValue;
         }
 
         // ------------------------------------------------------------------ DPAPI password helpers

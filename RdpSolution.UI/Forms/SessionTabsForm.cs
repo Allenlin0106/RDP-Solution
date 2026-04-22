@@ -4,17 +4,18 @@ using System.Linq;
 using System.Windows.Forms;
 using RdpSolution.DAL.Models;
 using RdpSolution.UI.RdpClient;
+using RdpSolution.UI.SessionClient;
+using RdpSolution.UI.VncClient;
 
 namespace RdpSolution.UI.Forms
 {
     /// <summary>
-    /// Non-modal window that hosts all active RDP sessions as pages in a TabControl.
-    /// Call <see cref="AddSession"/> to open a new tab for a host; each tab
-    /// contains one embedded <see cref="MsRdpClientControl"/>.
+    /// Non-modal window that hosts all active remote sessions as pages in a TabControl.
+    /// Each tab contains one <see cref="IRemoteControl"/> (either RDP or VNC).
     /// </summary>
     public partial class SessionTabsForm : Form
     {
-        private readonly List<RdpTabEntry> _entries = new List<RdpTabEntry>();
+        private readonly List<SessionEntry> _entries = new List<SessionEntry>();
 
         public SessionTabsForm()
         {
@@ -27,7 +28,7 @@ namespace RdpSolution.UI.Forms
         public void AddSession(RemoteHostConfig host)
         {
             var page  = new TabPage();
-            var entry = new RdpTabEntry(host, page, this);
+            var entry = new SessionEntry(host, page, this);
             _entries.Add(entry);
             tabControl.TabPages.Add(page);
             tabControl.SelectedTab = page;
@@ -44,7 +45,7 @@ namespace RdpSolution.UI.Forms
 
         // ------------------------------------------------------------------ close / cleanup
 
-        private void CloseEntry(RdpTabEntry entry)
+        private void CloseEntry(SessionEntry entry)
         {
             if (entry == null) return;
             entry.RequestDisconnect();
@@ -71,7 +72,7 @@ namespace RdpSolution.UI.Forms
 
         // ------------------------------------------------------------------ helpers
 
-        private RdpTabEntry CurrentEntry =>
+        private SessionEntry CurrentEntry =>
             tabControl.SelectedTab != null
                 ? _entries.FirstOrDefault(t => t.Page == tabControl.SelectedTab)
                 : null;
@@ -87,46 +88,46 @@ namespace RdpSolution.UI.Forms
             tslCount.Text         = _entries.Count + " session(s)";
         }
 
-        // ------------------------------------------------------------------ called by RdpTabEntry
+        // ------------------------------------------------------------------ called by SessionEntry
 
-        internal void OnEntryChanged(RdpTabEntry entry)
+        internal void OnEntryChanged(SessionEntry entry)
         {
             entry.Page.Text = entry.TabTitle;
             if (entry == CurrentEntry)
                 SyncToolbar();
         }
 
-        internal void OnCloseRequested(RdpTabEntry entry) => CloseEntry(entry);
+        internal void OnCloseRequested(SessionEntry entry) => CloseEntry(entry);
 
         // ====================================================================
-        // Inner class: manages one tab page + one RDP control
+        // Inner class: manages one tab page + one IRemoteControl
         // ====================================================================
 
-        internal sealed class RdpTabEntry : IDisposable
+        internal sealed class SessionEntry : IDisposable
         {
             // ---- public surface ----
-            public TabPage    Page          { get; }
-            public string     TabTitle      { get; private set; }
-            public string     StatusText    { get; private set; }
-            public int        ConnectedState => _rdp?.ConnectedState ?? 0;
+            public TabPage Page          { get; }
+            public string  TabTitle      { get; private set; }
+            public string  StatusText    { get; private set; }
+            public int     ConnectedState => _client?.ConnectedState ?? 0;
 
             // ---- private state ----
             private readonly RemoteHostConfig _host;
             private readonly SessionTabsForm  _owner;
-            private readonly MsRdpClientControl _rdp;
+            private readonly IRemoteControl   _client;
             private readonly Label  _lblInfo;
             private readonly Label  _lblStatus;
             private readonly Button _btnAction;
             private bool _intentionalDisconnect;
 
-            public RdpTabEntry(RemoteHostConfig host, TabPage page, SessionTabsForm owner)
+            public SessionEntry(RemoteHostConfig host, TabPage page, SessionTabsForm owner)
             {
                 _host  = host;
                 _owner = owner;
                 Page   = page;
 
-                TabTitle   = "\u25cc " + host.Name;   // ◌
-                StatusText = "Connecting\u2026";
+                TabTitle   = "◌ " + host.Name;
+                StatusText = "Connecting…";
 
                 // ---- top status bar ----
                 var panel = new Panel { Dock = DockStyle.Top, Height = 34 };
@@ -146,12 +147,12 @@ namespace RdpSolution.UI.Forms
                 {
                     Dock      = DockStyle.Fill,
                     TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
-                    Text      = "Connecting\u2026"
+                    Text      = "Connecting…"
                 };
 
                 var btnClose = new Button
                 {
-                    Dock = DockStyle.Right, Width = 72, Text = "\u2715 Close"
+                    Dock = DockStyle.Right, Width = 72, Text = "✕ Close"
                 };
                 btnClose.Click += (s, e) => _owner.OnCloseRequested(this);
 
@@ -159,25 +160,27 @@ namespace RdpSolution.UI.Forms
                 {
                     Dock    = DockStyle.Right,
                     Width   = 108,
-                    Text    = "Connecting\u2026",
+                    Text    = "Connecting…",
                     Enabled = false
                 };
                 _btnAction.Click += BtnAction_Click;
 
-                // Dock=Right controls: add in reverse visual order (rightmost first)
                 panel.Controls.Add(btnClose);
                 panel.Controls.Add(_btnAction);
                 panel.Controls.Add(_lblStatus);
                 panel.Controls.Add(_lblInfo);
 
-                // ---- RDP control ----
-                _rdp = new MsRdpClientControl { Dock = DockStyle.Fill };
-                _rdp.RdpConnected    += (s, e) => OnConnected();
-                _rdp.RdpDisconnected += (s, e) => OnDisconnected(e);
-                _rdp.CreateFailed    += (s, e) => ShowComError(e.Message);
+                // ---- protocol-specific control ----
+                if (host.Protocol == ConnectionProtocol.VNC)
+                    _client = new VncClientControl { Dock = DockStyle.Fill };
+                else
+                    _client = new MsRdpClientControl { Dock = DockStyle.Fill };
 
-                // Controls.Add: Fill must come before Top so docking resolves correctly
-                page.Controls.Add(_rdp);
+                _client.Connected    += (s, e) => OnConnected();
+                _client.Disconnected += (s, e) => OnDisconnected(e);
+                _client.CreateFailed += (s, e) => ShowCreateError(e.Message);
+
+                page.Controls.Add((Control)_client);
                 page.Controls.Add(panel);
             }
 
@@ -186,31 +189,16 @@ namespace RdpSolution.UI.Forms
             public void Connect()
             {
                 _intentionalDisconnect = false;
-
-                _rdp.Server        = _host.Hostname;
-                _rdp.Domain        = _host.Domain   ?? string.Empty;
-                _rdp.UserName      = _host.Username ?? string.Empty;
-                _rdp.DesktopWidth  = _host.Width;
-                _rdp.DesktopHeight = _host.Height;
-                _rdp.FullScreen    = false;
-                _rdp.SetPort(_host.Port);
-                _rdp.SetRedirectDrives(_host.AttachDrives);
-                _rdp.SetRedirectPrinters(_host.AttachPrinters);
-                _rdp.SetRedirectClipboard(true);
-                _rdp.SetSmartResize(true);
-
-                if (!string.IsNullOrEmpty(_host.Password))
-                    _rdp.SetPassword(_host.Password);
-
-                SetState("\u25cc " + _host.Name, "Connecting\u2026", actionText: "Connecting\u2026", actionEnabled: false);
-                _rdp.Connect();
+                SetState("◌ " + _host.Name, "Connecting…",
+                    actionText: "Connecting…", actionEnabled: false);
+                _client.Connect(_host);
             }
 
             public void RequestDisconnect()
             {
                 _intentionalDisconnect = true;
-                if (_rdp.ConnectedState != 0)
-                    _rdp.Disconnect();
+                if (_client.ConnectedState != 0)
+                    _client.Disconnect();
             }
 
             // ---- events ----
@@ -218,40 +206,40 @@ namespace RdpSolution.UI.Forms
             private void OnConnected()
             {
                 SetState(
-                    "\u25cf " + _host.Name,    // ●
-                    "Connected  \u2013  " + _host.Hostname + ":" + _host.Port,
+                    "● " + _host.Name,
+                    "Connected  –  " + _host.Hostname + ":" + _host.Port,
                     actionText: "&Disconnect",
                     actionEnabled: true);
             }
 
-            private void OnDisconnected(RdpDisconnectedEventArgs e)
+            private void OnDisconnected(DisconnectedEventArgs e)
             {
                 if (_intentionalDisconnect) return;
                 SetState(
-                    "\u25cb " + _host.Name,    // ○
-                    "Disconnected  \u2013  " + e.ReasonDescription,
+                    "○ " + _host.Name,
+                    "Disconnected  –  " + e.Reason,
                     actionText: "&Reconnect",
                     actionEnabled: true);
             }
 
-            private void ShowComError(string message)
+            private void ShowCreateError(string message)
             {
-                // Replace the RDP control with a readable error label
-                _rdp.Visible = false;
+                ((Control)_client).Visible = false;
                 var lbl = new Label
                 {
                     Dock      = DockStyle.Fill,
                     TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
                     ForeColor = System.Drawing.Color.Firebrick,
-                    Text      = "RDP control unavailable:\n\n" + message
+                    Text      = "Control unavailable:\n\n" + message
                 };
                 Page.Controls.Add(lbl);
-                SetState("⚠ " + _host.Name, "Error: RDP control unavailable", actionText: "N/A", actionEnabled: false);
+                SetState("⚠ " + _host.Name, "Error: control unavailable",
+                    actionText: "N/A", actionEnabled: false);
             }
 
             private void BtnAction_Click(object sender, EventArgs e)
             {
-                if (_rdp.ConnectedState == 0)
+                if (_client.ConnectedState == 0)
                     Connect();
                 else
                     RequestDisconnect();
@@ -276,7 +264,7 @@ namespace RdpSolution.UI.Forms
                        + _host.Hostname + ":" + _host.Port;
             }
 
-            public void Dispose() => _rdp?.Dispose();
+            public void Dispose() => ((Control)_client)?.Dispose();
         }
     }
 }

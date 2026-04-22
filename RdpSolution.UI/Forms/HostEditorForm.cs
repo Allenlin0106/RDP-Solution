@@ -22,11 +22,11 @@ namespace RdpSolution.UI.Forms
         {
             InitializeComponent();
             HostConfig = new RemoteHostConfig();
-            // Defaults already set by RemoteHostConfig ctor; reflect them in the controls.
             nudPort.Value       = HostConfig.Port;
             nudWidth.Value      = HostConfig.Width;
             nudHeight.Value     = HostConfig.Height;
             SelectColorDepth(HostConfig.ColorDepth);
+            OnProtocolChanged(null, EventArgs.Empty);
         }
 
         /// <summary>Opens the dialog in Edit mode pre-populated from <paramref name="config"/>.</summary>
@@ -54,6 +54,11 @@ namespace RdpSolution.UI.Forms
             SelectColorDepth(c.ColorDepth);
             txtPassword.Text = c.Password ?? string.Empty;
             txtNotes.Text    = c.Notes    ?? string.Empty;
+
+            cboProtocol.SelectedIndex    = c.Protocol    == ConnectionProtocol.VNC    ? 1 : 0;
+            cboVncAuthType.SelectedIndex = c.VncAuthType == VncAuthType.MsLogon       ? 1 : 0;
+
+            OnProtocolChanged(null, EventArgs.Empty);
             UpdateResolutionEnabled();
         }
 
@@ -78,6 +83,41 @@ namespace RdpSolution.UI.Forms
         private void chkFullScreen_CheckedChanged(object sender, EventArgs e)
         {
             UpdateResolutionEnabled();
+        }
+
+        private void OnProtocolChanged(object sender, EventArgs e)
+        {
+            // Guard: can fire from InitializeComponent before all controls exist
+            if (grpDisplay == null) return;
+
+            bool isVnc = cboProtocol.SelectedIndex == 1;
+
+            // Auto-switch port only when user actively changes protocol
+            if (sender != null)
+                nudPort.Value = isVnc ? 5900 : 3389;
+
+            grpDisplay.Visible     = !isVnc;
+            grpDevices.Visible     = !isVnc;
+            lblVncAuthType.Visible = isVnc;
+            cboVncAuthType.Visible = isVnc;
+
+            OnVncAuthTypeChanged(null, EventArgs.Empty);
+        }
+
+        private void OnVncAuthTypeChanged(object sender, EventArgs e)
+        {
+            // Guard: can fire from InitializeComponent before all controls exist
+            if (lblUsername == null) return;
+
+            bool isVnc     = cboProtocol.SelectedIndex    == 1;
+            bool isMsLogon = isVnc && cboVncAuthType.SelectedIndex == 1;
+
+            // RDP: always show. VNC+MsLogon: show. VNC+VncPassword: hide.
+            bool showUserDomain    = !isVnc || isMsLogon;
+            lblUsername.Visible    = showUserDomain;
+            txtUsername.Visible    = showUserDomain;
+            lblDomain.Visible      = showUserDomain;
+            txtDomain.Visible      = showUserDomain;
         }
 
         // ------------------------------------------------------------------ OK / Cancel
@@ -138,13 +178,18 @@ namespace RdpSolution.UI.Forms
             HostConfig.FullScreen     = chkFullScreen.Checked;
             HostConfig.AttachDrives   = chkAttachDrives.Checked;
             HostConfig.AttachPrinters = chkAttachPrinters.Checked;
-            HostConfig.Password       = txtPassword.Text;   // kept as plaintext in memory
+            HostConfig.Password       = txtPassword.Text;
             HostConfig.Notes          = txtNotes.Text.Trim();
 
             int bpp;
             HostConfig.ColorDepth = int.TryParse(
                 cmbColorDepth.SelectedItem != null ? cmbColorDepth.SelectedItem.ToString() : "32",
                 out bpp) ? bpp : 32;
+
+            HostConfig.Protocol    = cboProtocol.SelectedIndex    == 1
+                ? ConnectionProtocol.VNC  : ConnectionProtocol.RDP;
+            HostConfig.VncAuthType = cboVncAuthType.SelectedIndex == 1
+                ? VncAuthType.MsLogon     : VncAuthType.VncPassword;
         }
     }
 }

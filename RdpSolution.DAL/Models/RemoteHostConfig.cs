@@ -47,6 +47,9 @@ namespace RdpSolution.DAL.Models
         /// </summary>
         public string Password { get; set; }
 
+        public ConnectionProtocol Protocol    { get; set; }
+        public VncAuthType         VncAuthType { get; set; }
+
         public RemoteHostConfig()
         {
             Port      = 3389;

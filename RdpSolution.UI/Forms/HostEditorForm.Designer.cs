@@ -20,6 +20,10 @@ namespace RdpSolution.UI.Forms
             this.txtHostname       = new System.Windows.Forms.TextBox();
             this.lblPort           = new System.Windows.Forms.Label();
             this.nudPort           = new System.Windows.Forms.NumericUpDown();
+            this.lblProtocol       = new System.Windows.Forms.Label();
+            this.cboProtocol       = new System.Windows.Forms.ComboBox();
+            this.lblVncAuthType    = new System.Windows.Forms.Label();
+            this.cboVncAuthType    = new System.Windows.Forms.ComboBox();
             this.lblUsername       = new System.Windows.Forms.Label();
             this.txtUsername       = new System.Windows.Forms.TextBox();
             this.lblDomain         = new System.Windows.Forms.Label();
@@ -51,13 +55,17 @@ namespace RdpSolution.UI.Forms
             this.grpNotes.SuspendLayout();
             this.SuspendLayout();
 
-            // ==== grpConnection (y=8, h=182) ====
+            // ==== grpConnection (y=8, h=264 — 6 rows × 29 px + header) ====
             this.grpConnection.Controls.Add(this.lblName);
             this.grpConnection.Controls.Add(this.txtName);
             this.grpConnection.Controls.Add(this.lblHostname);
             this.grpConnection.Controls.Add(this.txtHostname);
             this.grpConnection.Controls.Add(this.lblPort);
             this.grpConnection.Controls.Add(this.nudPort);
+            this.grpConnection.Controls.Add(this.lblProtocol);
+            this.grpConnection.Controls.Add(this.cboProtocol);
+            this.grpConnection.Controls.Add(this.lblVncAuthType);
+            this.grpConnection.Controls.Add(this.cboVncAuthType);
             this.grpConnection.Controls.Add(this.lblUsername);
             this.grpConnection.Controls.Add(this.txtUsername);
             this.grpConnection.Controls.Add(this.lblDomain);
@@ -66,11 +74,12 @@ namespace RdpSolution.UI.Forms
             this.grpConnection.Controls.Add(this.txtPassword);
             this.grpConnection.Location = new System.Drawing.Point(12, 8);
             this.grpConnection.Name     = "grpConnection";
-            this.grpConnection.Size     = new System.Drawing.Size(452, 212);
+            this.grpConnection.Size     = new System.Drawing.Size(452, 264);
             this.grpConnection.TabIndex = 0;
             this.grpConnection.TabStop  = false;
             this.grpConnection.Text     = "Connection";
 
+            // Row 1: Display name
             this.lblName.AutoSize = true;
             this.lblName.Location = new System.Drawing.Point(10, 24);
             this.lblName.Name     = "lblName";
@@ -82,6 +91,7 @@ namespace RdpSolution.UI.Forms
             this.txtName.Size      = new System.Drawing.Size(320, 20);
             this.txtName.TabIndex  = 0;
 
+            // Row 2: Hostname
             this.lblHostname.AutoSize = true;
             this.lblHostname.Location = new System.Drawing.Point(10, 53);
             this.lblHostname.Name     = "lblHostname";
@@ -93,6 +103,7 @@ namespace RdpSolution.UI.Forms
             this.txtHostname.Size      = new System.Drawing.Size(320, 20);
             this.txtHostname.TabIndex  = 1;
 
+            // Row 3: Port
             this.lblPort.AutoSize = true;
             this.lblPort.Location = new System.Drawing.Point(10, 82);
             this.lblPort.Name     = "lblPort";
@@ -106,41 +117,78 @@ namespace RdpSolution.UI.Forms
             this.nudPort.TabIndex  = 2;
             this.nudPort.Value     = new decimal(new int[] { 3389, 0, 0, 0 });
 
+            // Row 4: Protocol
+            this.lblProtocol.AutoSize = true;
+            this.lblProtocol.Location = new System.Drawing.Point(10, 111);
+            this.lblProtocol.Name     = "lblProtocol";
+            this.lblProtocol.Text     = "P&rotocol:";
+
+            this.cboProtocol.DropDownStyle     = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboProtocol.FormattingEnabled = false;
+            this.cboProtocol.Items.AddRange(new object[] { "RDP", "VNC" });
+            this.cboProtocol.Location     = new System.Drawing.Point(120, 108);
+            this.cboProtocol.Name         = "cboProtocol";
+            this.cboProtocol.Size         = new System.Drawing.Size(140, 21);
+            this.cboProtocol.TabIndex     = 3;
+            this.cboProtocol.SelectedIndex = 0;
+            this.cboProtocol.SelectedIndexChanged += new System.EventHandler(this.OnProtocolChanged);
+
+            // Row 5: VNC Auth Type (hidden by default — shown only for VNC)
+            this.lblVncAuthType.AutoSize = true;
+            this.lblVncAuthType.Location = new System.Drawing.Point(10, 140);
+            this.lblVncAuthType.Name     = "lblVncAuthType";
+            this.lblVncAuthType.Text     = "VNC &Auth:";
+            this.lblVncAuthType.Visible  = false;
+
+            this.cboVncAuthType.DropDownStyle     = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboVncAuthType.FormattingEnabled = false;
+            this.cboVncAuthType.Items.AddRange(new object[] { "VNC Password", "MS Logon" });
+            this.cboVncAuthType.Location     = new System.Drawing.Point(120, 137);
+            this.cboVncAuthType.Name         = "cboVncAuthType";
+            this.cboVncAuthType.Size         = new System.Drawing.Size(140, 21);
+            this.cboVncAuthType.TabIndex     = 4;
+            this.cboVncAuthType.SelectedIndex = 0;
+            this.cboVncAuthType.Visible       = false;
+            this.cboVncAuthType.SelectedIndexChanged += new System.EventHandler(this.OnVncAuthTypeChanged);
+
+            // Row 6: Username
             this.lblUsername.AutoSize = true;
-            this.lblUsername.Location = new System.Drawing.Point(10, 111);
+            this.lblUsername.Location = new System.Drawing.Point(10, 169);
             this.lblUsername.Name     = "lblUsername";
             this.lblUsername.Text     = "&Username:";
 
-            this.txtUsername.Location  = new System.Drawing.Point(120, 108);
+            this.txtUsername.Location  = new System.Drawing.Point(120, 166);
             this.txtUsername.MaxLength = 128;
             this.txtUsername.Name      = "txtUsername";
             this.txtUsername.Size      = new System.Drawing.Size(320, 20);
-            this.txtUsername.TabIndex  = 3;
+            this.txtUsername.TabIndex  = 5;
 
+            // Row 7: Domain
             this.lblDomain.AutoSize = true;
-            this.lblDomain.Location = new System.Drawing.Point(10, 140);
+            this.lblDomain.Location = new System.Drawing.Point(10, 198);
             this.lblDomain.Name     = "lblDomain";
             this.lblDomain.Text     = "&Domain:";
 
-            this.txtDomain.Location  = new System.Drawing.Point(120, 137);
+            this.txtDomain.Location  = new System.Drawing.Point(120, 195);
             this.txtDomain.MaxLength = 128;
             this.txtDomain.Name      = "txtDomain";
             this.txtDomain.Size      = new System.Drawing.Size(320, 20);
-            this.txtDomain.TabIndex  = 4;
+            this.txtDomain.TabIndex  = 6;
 
+            // Row 8: Password
             this.lblPassword.AutoSize = true;
-            this.lblPassword.Location = new System.Drawing.Point(10, 169);
+            this.lblPassword.Location = new System.Drawing.Point(10, 227);
             this.lblPassword.Name     = "lblPassword";
             this.lblPassword.Text     = "Pass&word:";
 
-            this.txtPassword.Location              = new System.Drawing.Point(120, 166);
+            this.txtPassword.Location              = new System.Drawing.Point(120, 224);
             this.txtPassword.MaxLength             = 256;
             this.txtPassword.Name                  = "txtPassword";
             this.txtPassword.Size                  = new System.Drawing.Size(320, 20);
-            this.txtPassword.TabIndex              = 5;
+            this.txtPassword.TabIndex              = 7;
             this.txtPassword.UseSystemPasswordChar = true;
 
-            // ==== grpDisplay (y=226, h=94) ====
+            // ==== grpDisplay (y=278) ====
             this.grpDisplay.Controls.Add(this.chkFullScreen);
             this.grpDisplay.Controls.Add(this.lblWidth);
             this.grpDisplay.Controls.Add(this.nudWidth);
@@ -148,7 +196,7 @@ namespace RdpSolution.UI.Forms
             this.grpDisplay.Controls.Add(this.nudHeight);
             this.grpDisplay.Controls.Add(this.lblColorDepth);
             this.grpDisplay.Controls.Add(this.cmbColorDepth);
-            this.grpDisplay.Location = new System.Drawing.Point(12, 226);
+            this.grpDisplay.Location = new System.Drawing.Point(12, 278);
             this.grpDisplay.Name     = "grpDisplay";
             this.grpDisplay.Size     = new System.Drawing.Size(452, 94);
             this.grpDisplay.TabIndex = 1;
@@ -201,12 +249,12 @@ namespace RdpSolution.UI.Forms
             this.cmbColorDepth.Name         = "cmbColorDepth";
             this.cmbColorDepth.Size         = new System.Drawing.Size(60, 21);
             this.cmbColorDepth.TabIndex     = 3;
-            this.cmbColorDepth.SelectedIndex = 4; // 32 bpp default
+            this.cmbColorDepth.SelectedIndex = 4;
 
-            // ==== grpDevices (y=296, h=72) ====
+            // ==== grpDevices (y=378) ====
             this.grpDevices.Controls.Add(this.chkAttachDrives);
             this.grpDevices.Controls.Add(this.chkAttachPrinters);
-            this.grpDevices.Location = new System.Drawing.Point(12, 326);
+            this.grpDevices.Location = new System.Drawing.Point(12, 378);
             this.grpDevices.Name     = "grpDevices";
             this.grpDevices.Size     = new System.Drawing.Size(452, 72);
             this.grpDevices.TabIndex = 2;
@@ -227,9 +275,9 @@ namespace RdpSolution.UI.Forms
             this.chkAttachPrinters.TabIndex = 1;
             this.chkAttachPrinters.Text     = "Redirect &printers";
 
-            // ==== grpNotes (y=374, h=90) ====
+            // ==== grpNotes (y=456) ====
             this.grpNotes.Controls.Add(this.txtNotes);
-            this.grpNotes.Location = new System.Drawing.Point(12, 404);
+            this.grpNotes.Location = new System.Drawing.Point(12, 456);
             this.grpNotes.Name     = "grpNotes";
             this.grpNotes.Size     = new System.Drawing.Size(452, 90);
             this.grpNotes.TabIndex = 3;
@@ -243,9 +291,9 @@ namespace RdpSolution.UI.Forms
             this.txtNotes.Size       = new System.Drawing.Size(432, 60);
             this.txtNotes.TabIndex   = 0;
 
-            // ==== btnOk / btnCancel ====
+            // ==== btnOk / btnCancel (y=560) ====
             this.btnOk.Anchor       = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
-            this.btnOk.Location     = new System.Drawing.Point(304, 508);
+            this.btnOk.Location     = new System.Drawing.Point(304, 560);
             this.btnOk.Name         = "btnOk";
             this.btnOk.Size         = new System.Drawing.Size(75, 28);
             this.btnOk.TabIndex     = 4;
@@ -254,7 +302,7 @@ namespace RdpSolution.UI.Forms
 
             this.btnCancel.Anchor       = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
             this.btnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.btnCancel.Location     = new System.Drawing.Point(389, 508);
+            this.btnCancel.Location     = new System.Drawing.Point(389, 560);
             this.btnCancel.Name         = "btnCancel";
             this.btnCancel.Size         = new System.Drawing.Size(75, 28);
             this.btnCancel.TabIndex     = 5;
@@ -266,7 +314,7 @@ namespace RdpSolution.UI.Forms
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton        = this.btnCancel;
-            this.ClientSize          = new System.Drawing.Size(476, 548);
+            this.ClientSize          = new System.Drawing.Size(476, 600);
             this.Controls.Add(this.grpConnection);
             this.Controls.Add(this.grpDisplay);
             this.Controls.Add(this.grpDevices);
@@ -303,6 +351,10 @@ namespace RdpSolution.UI.Forms
         private System.Windows.Forms.TextBox        txtHostname;
         private System.Windows.Forms.Label          lblPort;
         private System.Windows.Forms.NumericUpDown  nudPort;
+        private System.Windows.Forms.Label          lblProtocol;
+        private System.Windows.Forms.ComboBox       cboProtocol;
+        private System.Windows.Forms.Label          lblVncAuthType;
+        private System.Windows.Forms.ComboBox       cboVncAuthType;
         private System.Windows.Forms.Label          lblUsername;
         private System.Windows.Forms.TextBox        txtUsername;
         private System.Windows.Forms.Label          lblDomain;
