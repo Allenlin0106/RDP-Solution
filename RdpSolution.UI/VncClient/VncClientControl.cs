@@ -247,13 +247,19 @@ namespace RdpSolution.UI.VncClient
             spf[16] = 0;   // B shift
             _stream.Write(spf, 0, 20);
 
-            // 6. SetEncodings — Raw only
-            byte[] se = new byte[8];
-            se[0] = 2;    // message type
-            // 1 padding byte
-            se[2] = 0; se[3] = 1;  // count = 1
-            // encoding 0 = Raw (4 bytes, big-endian int32)
-            _stream.Write(se, 0, 8);
+            // 6. SetEncodings — Raw + DesktopSize pseudo-encoding
+            //    Advertising DesktopSize (-223) lets UltraVNC send resize as a pseudo-rect
+            //    inside FramebufferUpdate (standard RFB mechanism) rather than only via
+            //    the proprietary rfbResizeFrameBuffer (type 4) server message.
+            byte[] se = new byte[12];
+            se[0] = 2;                                   // message type
+            // se[1] = 0 (padding)
+            se[2] = 0; se[3] = 2;                        // count = 2
+            // encoding 0 = Raw
+            se[4] = 0; se[5] = 0; se[6] = 0; se[7] = 0;
+            // encoding -223 = DesktopSize (0xFFFFFF21)
+            se[8] = 0xFF; se[9] = 0xFF; se[10] = 0xFF; se[11] = 0x21;
+            _stream.Write(se, 0, 12);
 
             // 7. Initial FramebufferUpdateRequest
             SendFbUpdateRequest(incremental: false);
@@ -270,16 +276,59 @@ namespace RdpSolution.UI.VncClient
 
                 switch (msgType)
                 {
-                    case 0: HandleFramebufferUpdate(); break;
-                    case 1: SkipColourMapEntries();    break;
-                    case 2: /* Bell — no-op */         break;
-                    case 3: SkipServerCutText();       break;
+                    case 0:    HandleFramebufferUpdate();            break;
+                    case 1:    SkipColourMapEntries();               break;
+                    case 2:    /* Bell — no-op */                    break;
+                    case 3:    SkipServerCutText();                  break;
+                    // UltraVNC proprietary server→client messages
+                    case 4:    HandleUltraVncResizeFrameBuffer();    break; // rfbResizeFrameBuffer
+                    case 7:    SkipUltraVncFileTransfer();           break; // rfbFileTransfer
+                    case 8:    ReadFull(new byte[3]);                break; // rfbSetScale: scale(1)+pad(2)
+                    case 9:    ReadFull(new byte[3]);                break; // rfbSetServerInput: status(1)+pad(2)
+                    case 10:   ReadFull(new byte[5]);                break; // rfbSetSW: status(1)+x(2)+y(2)
+                    case 11:   SkipUltraVncTextChat();               break; // rfbTextChat
+                    case 13:   /* rfbKeepAlive — no payload */       break;
+                    case 15:   ReadFull(new byte[11]);               break; // rfbPalmVNCReSizeFrameBuffer
+                    case 0xAD: ReadFull(new byte[11]);               break; // rfbServerState: pad(3)+state(4)+value(4)
                     default:
                         throw new System.IO.IOException(
                             "Unsupported server message type " + msgType +
                             ". Stream is now corrupt; disconnecting.");
                 }
             }
+        }
+
+        private void HandleUltraVncResizeFrameBuffer()
+        {
+            // rfbResizeFrameBufferMsg after type byte: pad(1) + width(2) + height(2)
+            _stream.ReadByte();
+            int w = ReadUInt16BE();
+            int h = ReadUInt16BE();
+            ResizeFramebuffer(w, h);
+            if (IsHandleCreated)
+                BeginInvoke(new Action(Invalidate));
+        }
+
+        private void SkipUltraVncFileTransfer()
+        {
+            // rfbFileTransferMsg after type: contentType(1)+contentParam(2)+size(4) then length(4) then data
+            ReadFull(new byte[7]); // contentType + contentParam + size
+            uint length = ReadUInt32BE();
+            if (length > 64 * 1024 * 1024)
+                throw new System.IO.IOException("rfbFileTransfer payload too large: " + length + " bytes.");
+            if (length > 0)
+                ReadFull(new byte[length]);
+        }
+
+        private void SkipUltraVncTextChat()
+        {
+            // rfbTextChatMsg after type: pad1(1)+pad2(2)+length(4) then text
+            ReadFull(new byte[3]); // pad1 + pad2
+            uint length = ReadUInt32BE();
+            if (length > 64 * 1024)
+                throw new System.IO.IOException("rfbTextChat payload too large: " + length + " bytes.");
+            if (length > 0)
+                ReadFull(new byte[length]);
         }
 
         private void HandleFramebufferUpdate()
