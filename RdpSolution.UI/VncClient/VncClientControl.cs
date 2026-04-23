@@ -131,39 +131,32 @@ namespace RdpSolution.UI.VncClient
                 byte[] types = new byte[typeCount];
                 ReadFull(types);
 
-                bool hasType17 = Array.IndexOf(types, (byte)17) >= 0;
-                bool hasType2  = Array.IndexOf(types, (byte)2)  >= 0;
+                bool hasType113 = Array.IndexOf(types, (byte)0x71) >= 0; // rfbUltraVNC_MsLogonIIAuth (direct)
+                bool hasType17  = Array.IndexOf(types, (byte)17)   >= 0; // rfbUltraVNC outer (older servers)
+                bool hasType2   = Array.IndexOf(types, (byte)2)    >= 0; // VNC Password
 
-                // UltraVNC MS-Logon II is always under outer type 17 (rfbUltraVNC);
-                // type 2 carries only standard VNC Password auth.
+                // Modern UltraVNC advertises 0x71 (113) directly in the security-type list.
+                // Older builds use 17 and start the DH exchange immediately after the client
+                // selects it (no sub-type negotiation on the wire).
                 byte chosen;
-                if (_host.VncAuthType == VncAuthType.MsLogon && hasType17)
-                    chosen = 17;
-                else if (hasType2)
-                    chosen = 2;
+                if (_host.VncAuthType == VncAuthType.MsLogon)
+                {
+                    if (hasType113)    chosen = 0x71;
+                    else if (hasType17) chosen = 17;
+                    else if (hasType2)  chosen = 2;
+                    else               chosen = 1;
+                }
                 else
-                    chosen = 1;
+                {
+                    if (hasType2)      chosen = 2;
+                    else               chosen = 1;
+                }
 
                 _stream.WriteByte(chosen);
 
-                if (chosen == 17)
+                if (chosen == 0x71 || chosen == 17)
                 {
-                    // UltraVNC sub-type negotiation: server sends count + list of sub-types.
-                    int subCount = _stream.ReadByte();
-                    if (subCount < 0)
-                        throw new InvalidOperationException("Connection closed during UltraVNC sub-type negotiation.");
-
-                    byte[] subTypes = new byte[subCount];
-                    if (subCount > 0) ReadFull(subTypes);
-
-                    if (Array.IndexOf(subTypes, (byte)0x71) < 0)
-                        throw new InvalidOperationException(
-                            "UltraVNC server does not offer MS-Logon II (0x71). " +
-                            "Offered sub-types: " +
-                            (subCount == 0 ? "(none)" : string.Join(", ", subTypes)));
-
-                    _stream.WriteByte(0x71); // select MS-Logon II
-
+                    // DH exchange begins immediately — no sub-type handshake on the wire.
                     AuthMsLogon(
                         _host.Username ?? string.Empty,
                         _host.Domain   ?? string.Empty,
