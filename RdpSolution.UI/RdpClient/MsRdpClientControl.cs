@@ -128,7 +128,7 @@ namespace RdpSolution.UI.RdpClient
                         return "Server denied the connection (FIPS policy)";
                     case ExtendedDisconnectReasonCode.exDiscReasonServerInsufficientPrivileges:
                         return "Insufficient privileges";
-                    case ExtendedDisconnectReasonCode.exDiscReasonServerFreshCredentialsRequired:
+                    case ExtendedDisconnectReasonCode.exDiscReasonServerFreshCredsRequired:
                         return "Fresh credentials required";
                     case ExtendedDisconnectReasonCode.exDiscReasonRPCInitiatedDisconnectByUser:
                         return "Disconnected by user";
