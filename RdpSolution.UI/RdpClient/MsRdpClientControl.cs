@@ -110,8 +110,6 @@ namespace RdpSolution.UI.RdpClient
             {
                 switch ((ExtendedDisconnectReasonCode)extReason)
                 {
-                    case ExtendedDisconnectReasonCode.exDiscReasonNoInfo:
-                        break;
                     case ExtendedDisconnectReasonCode.exDiscReasonAPIInitiatedDisconnect:
                         return "Disconnected";
                     case ExtendedDisconnectReasonCode.exDiscReasonAPIInitiatedLogoff:
@@ -136,6 +134,8 @@ namespace RdpSolution.UI.RdpClient
                         return "Disconnected by user";
                     case ExtendedDisconnectReasonCode.exDiscReasonLogoffByUser:
                         return "Logged off by user";
+                    case (ExtendedDisconnectReasonCode)768: // exDiscReasonRdpEncInvalidCredentials
+                        return "Invalid credentials";
                     case ExtendedDisconnectReasonCode.exDiscReasonLicenseInternal:
                     case ExtendedDisconnectReasonCode.exDiscReasonLicenseNoLicenseServer:
                     case ExtendedDisconnectReasonCode.exDiscReasonLicenseNoLicense:
@@ -147,6 +147,7 @@ namespace RdpSolution.UI.RdpClient
                     case ExtendedDisconnectReasonCode.exDiscReasonLicenseErrClientEncryption:
                     case ExtendedDisconnectReasonCode.exDiscReasonLicenseCantUpgradeLicense:
                     case ExtendedDisconnectReasonCode.exDiscReasonLicenseNoRemoteConnections:
+                    case (ExtendedDisconnectReasonCode)267: // exDiscReasonLicenseCreatingLicStoreAccDenied
                         return "Licensing error";
                     default:
                         return "Disconnected (extended code " + extReason + ")";
@@ -155,11 +156,27 @@ namespace RdpSolution.UI.RdpClient
 
             switch (discReason)
             {
-                case 0:  return "Session ended";
-                case 1:  return "User disconnected locally";
-                case 2:  return "Remote user disconnected";
-                case 3:  return "Server ended the session";
-                default: return "Disconnected (code " + discReason + ")";
+                case 0:    return "Session ended";
+                case 1:    return "User disconnected locally";
+                case 2:    return "Remote user disconnected";
+                case 3:    return "Server ended the session";
+                case 260:  return "DNS name lookup failure";
+                case 264:  return "Connection timed out";
+                case 516:  return "Connection failed";
+                case 520:  return "Host not found";
+                case 772:  return "Connection timed out";
+                case 1028: return "DNS name lookup failure";
+                case 2055: return "Logon failed";
+                case 2311: return "Remote Desktop Services not enabled on server";
+                case 2567: return "Decryption error";
+                case 2823: return "Account disabled";
+                case 3079: return "Account restriction";
+                case 3335: return "Account locked out";
+                case 3591: return "Account expired";
+                case 3847: return "Password expired";
+                case 4615: return "Password must change";
+                case 5639: return "Logon failure";
+                default:   return "Disconnected (code " + discReason + ")";
             }
         }
 
