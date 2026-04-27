@@ -52,6 +52,14 @@ namespace RdpSolution.UI.VncClient
             _intentionalDisconnect = false;
             _state                 = 2;
 
+            // Accessing Handle forces the window handle to be created synchronously
+            // on the calling (UI) thread.  Without this, the background thread can
+            // complete the handshake before WM_CREATE is processed, causing
+            // IsHandleCreated to be false when BeginInvoke is called, which silently
+            // drops the Connected / Disconnected events and leaves the UI frozen in
+            // "Connecting…" with a permanently black framebuffer.
+            var _ = Handle;
+
             _receiveThread = new Thread(ConnectAndReceive) { IsBackground = true };
             _receiveThread.Start();
         }
@@ -76,23 +84,20 @@ namespace RdpSolution.UI.VncClient
 
                 Handshake();
 
-                if (IsHandleCreated)
-                    BeginInvoke(new Action(() => Connected?.Invoke(this, EventArgs.Empty)));
                 _state = 1;
+                SafeInvoke(() => Connected?.Invoke(this, EventArgs.Empty));
 
                 ReceiveLoop();
 
                 // Normal EOF — server closed the connection
-                if (!_intentionalDisconnect && IsHandleCreated)
-                    BeginInvoke(new Action(() =>
-                        Disconnected?.Invoke(this,
-                            new DisconnectedEventArgs("Server closed the connection."))));
+                if (!_intentionalDisconnect)
+                    SafeInvoke(() => Disconnected?.Invoke(this,
+                        new DisconnectedEventArgs("Server closed the connection.")));
             }
             catch (Exception ex)
             {
-                if (!_intentionalDisconnect && IsHandleCreated)
-                    BeginInvoke(new Action(() =>
-                        Disconnected?.Invoke(this, new DisconnectedEventArgs(ex.Message))));
+                if (!_intentionalDisconnect)
+                    SafeInvoke(() => Disconnected?.Invoke(this, new DisconnectedEventArgs(ex.Message)));
             }
             finally
             {
@@ -305,8 +310,7 @@ namespace RdpSolution.UI.VncClient
             int w = ReadUInt16BE();
             int h = ReadUInt16BE();
             ResizeFramebuffer(w, h);
-            if (IsHandleCreated)
-                BeginInvoke(new Action(Invalidate));
+            SafeInvoke(Invalidate);
         }
 
         private void SkipUltraVncFileTransfer()
@@ -380,8 +384,7 @@ namespace RdpSolution.UI.VncClient
                 }
             }
 
-            if (IsHandleCreated)
-                BeginInvoke(new Action(Invalidate));
+            SafeInvoke(Invalidate);
             SendFbUpdateRequest(incremental: true);
         }
 
@@ -559,6 +562,18 @@ namespace RdpSolution.UI.VncClient
                 using (var enc = des.CreateEncryptor())
                     return enc.TransformFinalBlock(data, 0, data.Length);
             }
+        }
+
+        // ------------------------------------------------------------------ UI invoke helper
+
+        private void SafeInvoke(Action action)
+        {
+            try
+            {
+                if (IsHandleCreated && !IsDisposed)
+                    BeginInvoke(action);
+            }
+            catch { }
         }
 
         // ------------------------------------------------------------------ stream helpers
