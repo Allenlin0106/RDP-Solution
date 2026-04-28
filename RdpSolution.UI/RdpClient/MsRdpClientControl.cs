@@ -130,7 +130,7 @@ namespace RdpSolution.UI.RdpClient
                         return "Insufficient privileges";
                     case ExtendedDisconnectReasonCode.exDiscReasonServerFreshCredsRequired:
                         return "Fresh credentials required";
-                    case ExtendedDisconnectReasonCode.exDiscReasonRPCInitiatedDisconnectByUser:
+                    case ExtendedDisconnectReasonCode.exDiscReasonRpcInitiatedDisconnectByUser:
                         return "Disconnected by user";
                     case ExtendedDisconnectReasonCode.exDiscReasonLogoffByUser:
                         return "Logged off by user";

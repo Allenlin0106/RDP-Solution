@@ -541,9 +541,11 @@ namespace RdpSolution.UI.VncClient
                 ? username
                 : domain + "\\" + username;
 
-            // UltraVNC vncEncryptBytes2: DES-CBC where IV = key (not zero)
-            byte[] encUser = DesEncryptMsLogon(desKey, PadToSize(userField, 256));
-            byte[] encPass = DesEncryptMsLogon(desKey, PadToSize(password,  64));
+            // vncEncryptBytes2 carries the running IV across both buffers:
+            // the last ciphertext block of username becomes the starting IV for password.
+            byte[] iv      = (byte[])desKey.Clone();
+            byte[] encUser = VncEncryptBytes2(desKey, ref iv, PadToSize(userField, 256));
+            byte[] encPass = VncEncryptBytes2(desKey, ref iv, PadToSize(password,  64));
 
             _stream.Write(encUser, 0, 256);
             _stream.Write(encPass, 0,  64);
@@ -565,19 +567,30 @@ namespace RdpSolution.UI.VncClient
             return buf;
         }
 
-        // UltraVNC vncEncryptBytes2: DES-CBC with IV = key (not zero IV).
-        // This matches: C0=DES_K(P0 XOR K), Ci=DES_K(Pi XOR C(i-1)).
-        private static byte[] DesEncryptMsLogon(byte[] key8, byte[] data)
+        // Matches UltraVNC vncEncryptBytes2 exactly:
+        //   DES-ECB with manual CBC; iv (running key) is updated to each ciphertext
+        //   block and carried between calls so username and password share CBC state.
+        private static byte[] VncEncryptBytes2(byte[] key8, ref byte[] iv, byte[] plaintext)
         {
+            byte[] buf   = (byte[])plaintext.Clone();
+            byte[] block = new byte[8];
             using (var des = new DESCryptoServiceProvider())
             {
                 des.Key     = key8;
-                des.IV      = key8;   // UltraVNC: IV equals the key
-                des.Mode    = CipherMode.CBC;
+                des.Mode    = CipherMode.ECB;
                 des.Padding = PaddingMode.None;
                 using (var enc = des.CreateEncryptor())
-                    return enc.TransformFinalBlock(data, 0, data.Length);
+                {
+                    for (int i = 0; i < buf.Length; i += 8)
+                    {
+                        for (int j = 0; j < 8; j++) buf[i + j] ^= iv[j];
+                        enc.TransformBlock(buf, i, 8, block, 0);
+                        Array.Copy(block, 0, buf, i, 8);
+                        Array.Copy(block, 0, iv,  0, 8); // iv = ciphertext block
+                    }
+                }
             }
+            return buf;
         }
 
         // ------------------------------------------------------------------ UI invoke helper
