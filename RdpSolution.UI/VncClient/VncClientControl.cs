@@ -69,7 +69,6 @@ namespace RdpSolution.UI.VncClient
             _intentionalDisconnect = true;
             _state = 0;
             try { _tcp?.Close(); } catch { }
-            // 移除 _receiveThread?.Join(500); 避免造成 UI 執行緒 Deadlock
         }
 
         // ------------------------------------------------------------------ background thread
@@ -154,9 +153,6 @@ namespace RdpSolution.UI.VncClient
                 bool hasType17  = Array.IndexOf(types, (byte)17)   >= 0; // rfbUltraVNC outer (older servers)
                 bool hasType2   = Array.IndexOf(types, (byte)2)    >= 0; // VNC Password
 
-                // Modern UltraVNC advertises 0x71 (113) directly in the security-type list.
-                // Older builds use 17 and start the DH exchange immediately after the client
-                // selects it (no sub-type negotiation on the wire).
                 byte chosen;
                 if (_host.VncAuthType == VncAuthType.MsLogon)
                 {
@@ -175,7 +171,6 @@ namespace RdpSolution.UI.VncClient
 
                 if (chosen == 0x71 || chosen == 17)
                 {
-                    // DH exchange begins immediately — no sub-type handshake on the wire.
                     AuthMsLogon(
                         _host.Username ?? string.Empty,
                         _host.Domain   ?? string.Empty,
@@ -192,11 +187,6 @@ namespace RdpSolution.UI.VncClient
                     uint result = ReadUInt32BE();
                     if (result != 0)
                     {
-                        // RFB 3.8 spec says the server MAY send a reason string, but
-                        // UltraVNC closes the TCP connection immediately after sending
-                        // SecurityResult=1 without any reason.  Attempting to read the
-                        // reason length then throws "Unable to read data from the transport
-                        // connection".  Wrap the optional read in a try/catch.
                         string reason = "VNC authentication failed.";
                         try
                         {
@@ -212,11 +202,9 @@ namespace RdpSolution.UI.VncClient
                         throw new InvalidOperationException(reason);
                     }
                 }
-                // chosen == 1 (None): no auth body
             }
             else
             {
-                // RFB 3.3: server dictates the security type as a 32-bit value.
                 uint secType = ReadUInt32BE();
                 if (secType == 0)
                 {
@@ -239,17 +227,15 @@ namespace RdpSolution.UI.VncClient
                     if (result != 0)
                         throw new InvalidOperationException("UltraVNC MS-Logon II authentication failed.");
                 }
-                // secType == 1 (None): no auth
             }
 
-            // 3. ClientInit — shared=1
+            // 3. ClientInit
             _stream.WriteByte(1);
 
             // 4. ServerInit
             _fbW = ReadUInt16BE();
             _fbH = ReadUInt16BE();
 
-            // Skip 16-byte pixel format
             byte[] pixFmt = new byte[16];
             ReadFull(pixFmt);
 
@@ -260,36 +246,26 @@ namespace RdpSolution.UI.VncClient
             lock (_fbLock)
                 _framebuffer = new Bitmap(_fbW, _fbH, PixelFormat.Format32bppRgb);
 
-            // 5. SetPixelFormat — request 32-bpp RGBX
+            // 5. SetPixelFormat
             byte[] spf = new byte[20];
-            spf[0] = 0;    // message type
-            // 3 padding bytes
-            spf[4] = 32;   // bits-per-pixel
-            spf[5] = 24;   // depth
-            spf[6] = 0;    // big-endian = false
-            spf[7] = 1;    // true-colour = true
-            // R max = 255
+            spf[0] = 0;    
+            spf[4] = 32;   
+            spf[5] = 24;   
+            spf[6] = 0;    
+            spf[7] = 1;    
             spf[8] = 0; spf[9] = 255;
-            // G max = 255
             spf[10] = 0; spf[11] = 255;
-            // B max = 255
             spf[12] = 0; spf[13] = 255;
-            spf[14] = 16;  // R shift
-            spf[15] = 8;   // G shift
-            spf[16] = 0;   // B shift
+            spf[14] = 16;  
+            spf[15] = 8;   
+            spf[16] = 0;   
             _stream.Write(spf, 0, 20);
 
-            // 6. SetEncodings — Raw + DesktopSize pseudo-encoding
-            //    Advertising DesktopSize (-223) lets UltraVNC send resize as a pseudo-rect
-            //    inside FramebufferUpdate (standard RFB mechanism) rather than only via
-            //    the proprietary rfbResizeFrameBuffer (type 4) server message.
+            // 6. SetEncodings
             byte[] se = new byte[12];
-            se[0] = 2;                                   // message type
-            // se[1] = 0 (padding)
-            se[2] = 0; se[3] = 2;                        // count = 2
-            // encoding 0 = Raw
+            se[0] = 2;                                   
+            se[2] = 0; se[3] = 2;                        
             se[4] = 0; se[5] = 0; se[6] = 0; se[7] = 0;
-            // encoding -223 = DesktopSize (0xFFFFFF21)
             se[8] = 0xFF; se[9] = 0xFF; se[10] = 0xFF; se[11] = 0x21;
             _stream.Write(se, 0, 12);
 
@@ -312,16 +288,15 @@ namespace RdpSolution.UI.VncClient
                     case 1:    SkipColourMapEntries();               break;
                     case 2:    /* Bell — no-op */                    break;
                     case 3:    SkipServerCutText();                  break;
-                    // UltraVNC proprietary server→client messages
-                    case 4:    HandleUltraVncResizeFrameBuffer();    break; // rfbResizeFrameBuffer
-                    case 7:    SkipUltraVncFileTransfer();           break; // rfbFileTransfer
-                    case 8:    ReadFull(new byte[3]);                break; // rfbSetScale: scale(1)+pad(2)
-                    case 9:    ReadFull(new byte[3]);                break; // rfbSetServerInput: status(1)+pad(2)
-                    case 10:   ReadFull(new byte[5]);                break; // rfbSetSW: status(1)+x(2)+y(2)
-                    case 11:   SkipUltraVncTextChat();               break; // rfbTextChat
+                    case 4:    HandleUltraVncResizeFrameBuffer();    break;
+                    case 7:    SkipUltraVncFileTransfer();           break;
+                    case 8:    ReadFull(new byte[3]);                break;
+                    case 9:    ReadFull(new byte[3]);                break;
+                    case 10:   ReadFull(new byte[5]);                break;
+                    case 11:   SkipUltraVncTextChat();               break;
                     case 13:   /* rfbKeepAlive — no payload */       break;
-                    case 15:   ReadFull(new byte[11]);               break; // rfbPalmVNCReSizeFrameBuffer
-                    case 0xAD: ReadFull(new byte[11]);               break; // rfbServerState: pad(3)+state(4)+value(4)
+                    case 15:   ReadFull(new byte[11]);               break;
+                    case 0xAD: ReadFull(new byte[11]);               break;
                     default:
                         throw new System.IO.IOException(
                             "Unsupported server message type " + msgType +
@@ -332,7 +307,6 @@ namespace RdpSolution.UI.VncClient
 
         private void HandleUltraVncResizeFrameBuffer()
         {
-            // rfbResizeFrameBufferMsg after type byte: pad(1) + width(2) + height(2)
             _stream.ReadByte();
             int w = ReadUInt16BE();
             int h = ReadUInt16BE();
@@ -342,8 +316,7 @@ namespace RdpSolution.UI.VncClient
 
         private void SkipUltraVncFileTransfer()
         {
-            // rfbFileTransferMsg after type: contentType(1)+contentParam(2)+size(4) then length(4) then data
-            ReadFull(new byte[7]); // contentType + contentParam + size
+            ReadFull(new byte[7]); 
             uint length = ReadUInt32BE();
             if (length > 64 * 1024 * 1024)
                 throw new System.IO.IOException("rfbFileTransfer payload too large: " + length + " bytes.");
@@ -353,8 +326,7 @@ namespace RdpSolution.UI.VncClient
 
         private void SkipUltraVncTextChat()
         {
-            // rfbTextChatMsg after type: pad1(1)+pad2(2)+length(4) then text
-            ReadFull(new byte[3]); // pad1 + pad2
+            ReadFull(new byte[3]); 
             uint length = ReadUInt32BE();
             if (length > 64 * 1024)
                 throw new System.IO.IOException("rfbTextChat payload too large: " + length + " bytes.");
@@ -364,7 +336,7 @@ namespace RdpSolution.UI.VncClient
 
         private void HandleFramebufferUpdate()
         {
-            _stream.ReadByte(); // padding
+            _stream.ReadByte(); 
             int rectCount = ReadUInt16BE();
 
             for (int i = 0; i < rectCount; i++)
@@ -377,37 +349,31 @@ namespace RdpSolution.UI.VncClient
 
                 switch (encoding)
                 {
-                    case 0: // Raw — w*h pixels, 4 bytes each
+                    case 0:
                         if (w > 0 && h > 0)
                             ApplyRawRect(x, y, w, h);
                         break;
-
-                    case -223: // DesktopSize pseudo-encoding — no pixel data; resize framebuffer
+                    case -223:
                         ResizeFramebuffer(w, h);
                         break;
-
-                    case -239: // RichCursor — pixel data + bitmask; read and discard
+                    case -239:
                         if (w > 0 && h > 0)
                         {
-                            ReadFull(new byte[w * h * 4]);              // cursor pixel data
-                            ReadFull(new byte[((w + 7) / 8) * h]);      // bitmask
+                            ReadFull(new byte[w * h * 4]);             
+                            ReadFull(new byte[((w + 7) / 8) * h]);     
                         }
                         break;
-
-                    case -240: // XCursor — 6-byte fore/back RGB + two bitmasks
+                    case -240:
                         if (w > 0 && h > 0)
                         {
-                            ReadFull(new byte[6]);                           // fore + back RGB
-                            ReadFull(new byte[((w + 7) / 8) * h * 2]);      // two bitmasks
+                            ReadFull(new byte[6]);                          
+                            ReadFull(new byte[((w + 7) / 8) * h * 2]);     
                         }
                         break;
-
-                    case 1: // CopyRect — 4-byte source position
+                    case 1:
                         ReadFull(new byte[4]);
                         break;
-
                     default:
-                        // Unknown encoding: cannot determine payload size; disconnect cleanly.
                         throw new System.IO.IOException(
                             "Unsupported rectangle encoding " + encoding +
                             ". Stream is now corrupt; disconnecting.");
@@ -461,8 +427,8 @@ namespace RdpSolution.UI.VncClient
 
         private void SkipColourMapEntries()
         {
-            _stream.ReadByte(); // padding
-            ReadUInt16BE();     // firstColour (discard)
+            _stream.ReadByte(); 
+            ReadUInt16BE();     
             int colourCount = ReadUInt16BE();
             byte[] skip = new byte[colourCount * 6];
             ReadFull(skip);
@@ -483,9 +449,8 @@ namespace RdpSolution.UI.VncClient
         private void SendFbUpdateRequest(bool incremental)
         {
             byte[] req = new byte[10];
-            req[0] = 3;                                      // message type
+            req[0] = 3;                                      
             req[1] = (byte)(incremental ? 1 : 0);
-            // x=0, y=0
             req[6] = (byte)(_fbW >> 8); req[7] = (byte)_fbW;
             req[8] = (byte)(_fbH >> 8); req[9] = (byte)_fbH;
             _stream.Write(req, 0, 10);
@@ -498,7 +463,6 @@ namespace RdpSolution.UI.VncClient
             byte[] challenge = new byte[16];
             ReadFull(challenge);
 
-            // Build 8-byte DES key from password (ASCII, padded/truncated, bits reversed)
             byte[] keyBytes = new byte[8];
             byte[] pwBytes  = Encoding.ASCII.GetBytes(password);
             for (int i = 0; i < 8; i++)
@@ -531,12 +495,10 @@ namespace RdpSolution.UI.VncClient
 
         private void AuthMsLogon(string username, string domain, string password)
         {
-            // DH parameters sent big-endian (UltraVNC dh.cpp int64ToBytes / bytesToInt64)
             ulong g         = ReadUInt64BE();
             ulong p         = ReadUInt64BE();
             ulong serverPub = ReadUInt64BE();
 
-            // UltraVNC limits the DH private key to 31 bits (DH_MAX_BITS = 31)
             byte[] rnd = new byte[8];
             using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(rnd);
             ulong clientPriv = (BitConverter.ToUInt64(rnd, 0) % ((1UL << 31) - 1)) + 1;
@@ -546,24 +508,29 @@ namespace RdpSolution.UI.VncClient
 
             WriteUInt64BE(clientPub);
 
-            // DES key = shared secret as 8 big-endian bytes; no bit-reversal (unlike VNC Password)
-            byte[] desKey = new byte[8];
+            // 取得 8 bytes 的 DH Shared Secret
+            byte[] dhSecret = new byte[8];
             for (int i = 0; i < 8; i++)
-                desKey[i] = (byte)(shared >> (56 - 8 * i));
+                dhSecret[i] = (byte)(shared >> (56 - 8 * i));
+
+            // 修正核心：DES Key 必須經過位元反轉 (Bit-Reversal)
+            byte[] desKeyReversed = new byte[8];
+            for (int i = 0; i < 8; i++)
+                desKeyReversed[i] = ReverseBits(dhSecret[i]);
+
+            // 修正核心：初始向量 (IV) 必須使用「反轉前」的原始 dhSecret
+            byte[] iv = (byte[])dhSecret.Clone();
 
             string userField = string.IsNullOrEmpty(domain)
                 ? username
                 : domain + "\\" + username;
 
-            // vncEncryptBytes2 carries the running IV across both buffers:
-            // the last ciphertext block of username becomes the starting IV for password.
-            byte[] iv      = (byte[])desKey.Clone();
-            byte[] encUser = VncEncryptBytes2(desKey, ref iv, PadToSize(userField, 256));
-            byte[] encPass = VncEncryptBytes2(desKey, ref iv, PadToSize(password,  64));
+            // 傳入 desKeyReversed 與原始的 iv 進行加密
+            byte[] encUser = VncEncryptBytes2(desKeyReversed, ref iv, PadToSize(userField, 256));
+            byte[] encPass = VncEncryptBytes2(desKeyReversed, ref iv, PadToSize(password,  64));
 
             _stream.Write(encUser, 0, 256);
             _stream.Write(encPass, 0,  64);
-            // Auth result (4-byte SecurityResult) is read by the caller, not here.
         }
 
         private static ulong ModPow(ulong b, ulong e, ulong m)
@@ -576,14 +543,12 @@ namespace RdpSolution.UI.VncClient
         private static byte[] PadToSize(string s, int size)
         {
             byte[] buf = new byte[size];
-            byte[] raw = Encoding.UTF8.GetBytes(s ?? string.Empty);
+            // 修正編碼：使用 ASCII 避免多位元組導致伺服器端解密字串錯亂
+            byte[] raw = Encoding.ASCII.GetBytes(s ?? string.Empty);
             Array.Copy(raw, buf, Math.Min(raw.Length, size - 1));
             return buf;
         }
 
-        // Matches UltraVNC vncEncryptBytes2 exactly:
-        //   DES-ECB with manual CBC; iv (running key) is updated to each ciphertext
-        //   block and carried between calls so username and password share CBC state.
         private static byte[] VncEncryptBytes2(byte[] key8, ref byte[] iv, byte[] plaintext)
         {
             byte[] buf   = (byte[])plaintext.Clone();
@@ -600,7 +565,7 @@ namespace RdpSolution.UI.VncClient
                         for (int j = 0; j < 8; j++) buf[i + j] ^= iv[j];
                         enc.TransformBlock(buf, i, 8, block, 0);
                         Array.Copy(block, 0, buf, i, 8);
-                        Array.Copy(block, 0, iv,  0, 8); // iv = ciphertext block
+                        Array.Copy(block, 0, iv,  0, 8); 
                     }
                 }
             }
@@ -757,7 +722,6 @@ namespace RdpSolution.UI.VncClient
             byte[] msg = new byte[8];
             msg[0] = 4;
             msg[1] = (byte)(down ? 1 : 0);
-            // 2 padding bytes
             msg[4] = (byte)(keysym >> 24);
             msg[5] = (byte)(keysym >> 16);
             msg[6] = (byte)(keysym >>  8);
