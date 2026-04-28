@@ -178,11 +178,24 @@ namespace RdpSolution.UI.VncClient
                     uint result = ReadUInt32BE();
                     if (result != 0)
                     {
-                        uint reasonLen = ReadUInt32BE();
-                        byte[] rb = new byte[reasonLen];
-                        ReadFull(rb);
-                        throw new InvalidOperationException(
-                            "VNC authentication failed: " + Encoding.UTF8.GetString(rb));
+                        // RFB 3.8 spec says the server MAY send a reason string, but
+                        // UltraVNC closes the TCP connection immediately after sending
+                        // SecurityResult=1 without any reason.  Attempting to read the
+                        // reason length then throws "Unable to read data from the transport
+                        // connection".  Wrap the optional read in a try/catch.
+                        string reason = "VNC authentication failed.";
+                        try
+                        {
+                            uint reasonLen = ReadUInt32BE();
+                            if (reasonLen > 0 && reasonLen <= 4096)
+                            {
+                                byte[] rb = new byte[reasonLen];
+                                ReadFull(rb);
+                                reason = "VNC authentication failed: " + Encoding.UTF8.GetString(rb);
+                            }
+                        }
+                        catch { /* server closed without reason string */ }
+                        throw new InvalidOperationException(reason);
                     }
                 }
                 // chosen == 1 (None): no auth body
@@ -367,9 +380,12 @@ namespace RdpSolution.UI.VncClient
                         }
                         break;
 
-                    case -240: // XCursor — fore+back bitmasks only
+                    case -240: // XCursor — 6-byte fore/back RGB + two bitmasks
                         if (w > 0 && h > 0)
-                            ReadFull(new byte[((w + 7) / 8) * h * 2]);  // two bitmasks
+                        {
+                            ReadFull(new byte[6]);                           // fore + back RGB
+                            ReadFull(new byte[((w + 7) / 8) * h * 2]);      // two bitmasks
+                        }
                         break;
 
                     case 1: // CopyRect — 4-byte source position
