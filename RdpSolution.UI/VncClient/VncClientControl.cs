@@ -67,9 +67,9 @@ namespace RdpSolution.UI.VncClient
         public void Disconnect()
         {
             _intentionalDisconnect = true;
-            try { _tcp?.Close(); } catch { }
-            _receiveThread?.Join(500);
             _state = 0;
+            try { _tcp?.Close(); } catch { }
+            // 移除 _receiveThread?.Join(500); 避免造成 UI 執行緒 Deadlock
         }
 
         // ------------------------------------------------------------------ background thread
@@ -78,8 +78,22 @@ namespace RdpSolution.UI.VncClient
         {
             try
             {
-                _tcp    = new TcpClient();
-                _tcp.Connect(_host.Hostname, _host.Port);
+                _tcp = new TcpClient();
+                
+                // 1. 設定網路讀寫逾時，避免 Handshake 時伺服器無回應導致卡死
+                _tcp.ReceiveTimeout = 10000;
+                _tcp.SendTimeout = 10000;
+
+                // 2. 使用非同步等待來限制連線最大等待時間 (10秒)
+                var connectResult = _tcp.BeginConnect(_host.Hostname, _host.Port, null, null);
+                bool success = connectResult.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+                
+                if (!success)
+                {
+                    throw new TimeoutException("連線逾時：請確認 IP、Port 是否正確，或檢查防火牆設定。");
+                }
+                _tcp.EndConnect(connectResult);
+
                 _stream = _tcp.GetStream();
 
                 Handshake();
@@ -599,8 +613,12 @@ namespace RdpSolution.UI.VncClient
         {
             try
             {
-                if (IsHandleCreated && !IsDisposed)
+                if (IsDisposed || !IsHandleCreated) return;
+                
+                if (InvokeRequired)
                     BeginInvoke(action);
+                else
+                    action();
             }
             catch { }
         }
@@ -682,7 +700,7 @@ namespace RdpSolution.UI.VncClient
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
-            if (_state == 1) SendPointerEvent(e, 0);
+            if (_state == 1) SendPointerEvent(e, GetButtonMask(Control.MouseButtons));
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -707,7 +725,7 @@ namespace RdpSolution.UI.VncClient
             msg[1] = buttonMask;
             msg[2] = (byte)(x >> 8); msg[3] = (byte)x;
             msg[4] = (byte)(y >> 8); msg[5] = (byte)y;
-            try { _stream?.Write(msg, 0, 6); } catch { }
+            try { _stream?.WriteAsync(msg, 0, 6); } catch { }
         }
 
         private static byte GetButtonMask(MouseButtons b)
@@ -744,7 +762,7 @@ namespace RdpSolution.UI.VncClient
             msg[5] = (byte)(keysym >> 16);
             msg[6] = (byte)(keysym >>  8);
             msg[7] = (byte) keysym;
-            try { _stream?.Write(msg, 0, 8); } catch { }
+            try { _stream?.WriteAsync(msg, 0, 8); } catch { }
         }
 
         // ------------------------------------------------------------------ key map
