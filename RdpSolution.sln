@@ -1,0 +1,34 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.705
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RdpSolution.DAL", "RdpSolution.DAL\RdpSolution.DAL.csproj", "{8A4F7E1B-3C25-4D68-B97A-1E2F5C9D0AB3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RdpSolution.BLL", "RdpSolution.BLL\RdpSolution.BLL.csproj", "{2D5E8F1C-7B34-4A19-C82D-6F3E7A4B0CD5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RdpSolution.UI", "RdpSolution.UI\RdpSolution.UI.csproj", "{4F7A2E3D-9C46-4B2A-D15F-8E4C6B7A3EF2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8A4F7E1B-3C25-4D68-B97A-1E2F5C9D0AB3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A4F7E1B-3C25-4D68-B97A-1E2F5C9D0AB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A4F7E1B-3C25-4D68-B97A-1E2F5C9D0AB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A4F7E1B-3C25-4D68-B97A-1E2F5C9D0AB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2D5E8F1C-7B34-4A19-C82D-6F3E7A4B0CD5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2D5E8F1C-7B34-4A19-C82D-6F3E7A4B0CD5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2D5E8F1C-7B34-4A19-C82D-6F3E7A4B0CD5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2D5E8F1C-7B34-4A19-C82D-6F3E7A4B0CD5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F7A2E3D-9C46-4B2A-D15F-8E4C6B7A3EF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F7A2E3D-9C46-4B2A-D15F-8E4C6B7A3EF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F7A2E3D-9C46-4B2A-D15F-8E4C6B7A3EF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F7A2E3D-9C46-4B2A-D15F-8E4C6B7A3EF2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

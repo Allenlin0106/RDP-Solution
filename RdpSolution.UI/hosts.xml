@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RDP Connection Manager – host configuration file.
+
+  Each <Host> element represents one saved remote-desktop target.
+  Fields:
+    Name           – friendly label shown in the list
+    Hostname       – DNS name or IP address
+    Port           – RDP listener port (default 3389)
+    Username       – Windows user account (leave empty to prompt)
+    Domain         – AD domain or machine name; empty = local account
+    Width/Height   – remote desktop resolution (ignored when FullScreen=true)
+    FullScreen     – true | false
+    AttachDrives   – redirect local drives into the session
+    AttachPrinters – redirect local printers into the session
+    ColorDepth     – bits per pixel: 8 | 15 | 16 | 24 | 32
+    Notes          – free-form text
+-->
+<RemoteHosts>
+  <Host id="00000000-0000-0000-0000-000000000001">
+    <Name>Example – Office Server</Name>
+    <Hostname>server.example.local</Hostname>
+    <Port>3389</Port>
+    <Username>administrator</Username>
+    <Domain>EXAMPLE</Domain>
+    <Width>1920</Width>
+    <Height>1080</Height>
+    <FullScreen>false</FullScreen>
+    <AttachDrives>false</AttachDrives>
+    <AttachPrinters>false</AttachPrinters>
+    <ColorDepth>32</ColorDepth>
+    <Notes>Main file server – production environment.</Notes>
+  </Host>
+  <Host id="00000000-0000-0000-0000-000000000002">
+    <Name>Example – Dev VM (Full Screen)</Name>
+    <Hostname>192.168.1.50</Hostname>
+    <Port>3389</Port>
+    <Username>devuser</Username>
+    <Domain></Domain>
+    <Width>1024</Width>
+    <Height>768</Height>
+    <FullScreen>true</FullScreen>
+    <AttachDrives>true</AttachDrives>
+    <AttachPrinters>false</AttachPrinters>
+    <ColorDepth>32</ColorDepth>
+    <Notes>Local development virtual machine.</Notes>
+  </Host>
+</RemoteHosts>
